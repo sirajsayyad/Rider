@@ -1,12 +1,13 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:socket_io_client/socket_io_client.dart' as IO;
+import 'package:socket_io_client/socket_io_client.dart' as io;
 import '../config/app_config.dart';
 import '../constants/api_constants.dart';
 
 /// WebSocket Service for real-time communication
 class SocketService {
-  IO.Socket? _socket;
+  io.Socket? _socket;
   final Map<String, List<Function(dynamic)>> _eventListeners = {};
   bool _isConnected = false;
   String? _authToken;
@@ -17,9 +18,9 @@ class SocketService {
   void connect(String token) {
     _authToken = token;
     
-    _socket = IO.io(
+    _socket = io.io(
       AppConfig.wsUrl,
-      IO.OptionBuilder()
+      io.OptionBuilder()
           .setTransports(['websocket'])
           .setAuth({'token': token})
           .enableAutoConnect()
@@ -35,20 +36,20 @@ class SocketService {
   void _setupListeners() {
     _socket?.onConnect((_) {
       _isConnected = true;
-      print('Socket connected');
+      debugPrint('Socket connected');
     });
     
     _socket?.onDisconnect((_) {
       _isConnected = false;
-      print('Socket disconnected');
+      debugPrint('Socket disconnected');
     });
     
     _socket?.onConnectError((error) {
-      print('Socket connection error: $error');
+      debugPrint('Socket connection error: $error');
     });
     
     _socket?.onError((error) {
-      print('Socket error: $error');
+      debugPrint('Socket error: $error');
     });
     
     // Listen for all registered events
@@ -89,7 +90,7 @@ class SocketService {
     if (_isConnected) {
       _socket?.emit(event, data);
     } else {
-      print('Socket not connected, cannot emit $event');
+      debugPrint('Socket not connected, cannot emit $event');
     }
   }
   

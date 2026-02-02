@@ -16,8 +16,6 @@ class EarningsScreen extends ConsumerWidget {
     const totalEarnings = 15680.0;
     const todayEarnings = 1256.0;
     const weeklyEarnings = 8450.0;
-    const totalTrips = 156;
-    const onlineHours = 42.5;
 
     final dailyEarnings = [
       {'day': 'Mon', 'amount': 1200.0},
@@ -105,18 +103,18 @@ class EarningsScreen extends ConsumerWidget {
             Row(
               children: [
                 Expanded(
-                  child: StatCard(
+                  child: const StatCard(
                     title: 'Total Trips',
-                    value: totalTrips.toString(),
+                    value: '156',
                     icon: Icons.directions_car,
                     iconColor: AppColors.primary,
                   ),
                 ),
                 const SizedBox(width: AppSpacing.md),
                 Expanded(
-                  child: StatCard(
+                  child: const StatCard(
                     title: 'Online Hours',
-                    value: '${onlineHours}h',
+                    value: '42.5h',
                     icon: Icons.access_time,
                     iconColor: AppColors.secondary,
                   ),

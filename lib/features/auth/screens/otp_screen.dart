@@ -223,36 +223,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
                               ),
                             ),
                             const Spacer(),
-                            Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: AppSpacing.sm,
-                                vertical: AppSpacing.xs,
-                              ),
-                              decoration: BoxDecoration(
-                                borderRadius:
-                                    BorderRadius.circular(AppRadius.full),
-                                color: AppColors.primary.withOpacity(0.1),
-                              ),
-                              child: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: const [
-                                  Icon(
-                                    Icons.bolt,
-                                    size: 14,
-                                    color: AppColors.primary,
-                                  ),
-                                  SizedBox(width: 4),
-                                  Text(
-                                    'Instant',
-                                    style: TextStyle(
-                                      color: AppColors.primary,
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
+                            const _InstantBadge(),
                           ],
                         ),
                         const SizedBox(height: AppSpacing.md),
@@ -570,6 +541,43 @@ class _ResendCountdownBadge extends StatelessWidget {
                 ),
               ),
             ),
+    );
+  }
+}
+
+class _InstantBadge extends StatelessWidget {
+  const _InstantBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.sm,
+        vertical: AppSpacing.xs,
+      ),
+      decoration: const BoxDecoration(
+        borderRadius: BorderRadius.all(Radius.circular(AppRadius.full)),
+        color: Color(0x1A6366F1),
+      ),
+      child: const Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.bolt,
+            size: 14,
+            color: AppColors.primary,
+          ),
+          SizedBox(width: 4),
+          Text(
+            'Instant',
+            style: TextStyle(
+              color: AppColors.primary,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

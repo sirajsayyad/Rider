@@ -125,7 +125,7 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               if (_isLoadingLocation) ...[
-                                SizedBox(
+                                const SizedBox(
                                   width: 14,
                                   height: 14,
                                   child: CircularProgressIndicator(
