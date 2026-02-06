@@ -100,19 +100,19 @@ class EarningsScreen extends ConsumerWidget {
             const SizedBox(height: AppSpacing.xl),
 
             // Stats row
-            Row(
+            const Row(
               children: [
                 Expanded(
-                  child: const StatCard(
+                  child: StatCard(
                     title: 'Total Trips',
                     value: '156',
                     icon: Icons.directions_car,
                     iconColor: AppColors.primary,
                   ),
                 ),
-                const SizedBox(width: AppSpacing.md),
+                SizedBox(width: AppSpacing.md),
                 Expanded(
-                  child: const StatCard(
+                  child: StatCard(
                     title: 'Online Hours',
                     value: '42.5h',
                     icon: Icons.access_time,
