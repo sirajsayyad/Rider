@@ -10,9 +10,9 @@ import '../../../core/widgets/buttons/buttons.dart';
 
 /// OTP verification screen
 class OtpScreen extends ConsumerStatefulWidget {
-  final String phoneNumber;
+  final String contact;
 
-  const OtpScreen({super.key, required this.phoneNumber});
+  const OtpScreen({super.key, required this.contact});
 
   @override
   ConsumerState<OtpScreen> createState() => _OtpScreenState();
@@ -50,6 +50,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
       _resendProgress = 1.0;
     });
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!mounted) { timer.cancel(); return; }
       if (_resendTimer > 1) {
         setState(() {
           _resendTimer--;
@@ -68,8 +69,8 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
 
   @override
   void dispose() {
-    _otpController.dispose();
     _otpController.removeListener(_onOtpChanged);
+    _otpController.dispose();
     _timer?.cancel();
     _backgroundController.dispose();
     super.dispose();
@@ -81,7 +82,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
     setState(() => _isLoading = true);
 
     final success = await ref.read(authServiceProvider.notifier).verifyOtp(
-      widget.phoneNumber,
+      widget.contact,
       _otpController.text,
     );
 
@@ -114,7 +115,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
     setState(() => _isLoading = true);
 
     final success = await ref.read(authServiceProvider.notifier).sendOtp(
-      widget.phoneNumber,
+      widget.contact,
     );
 
     setState(() => _isLoading = false);
@@ -250,7 +251,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
                               const TextSpan(
                                   text: 'Enter the 6-digit code sent to '),
                               TextSpan(
-                                text: '+91 ${widget.phoneNumber}',
+                                text: widget.contact,
                                 style: TextStyle(
                                   fontWeight: FontWeight.w600,
                                   color: isDark

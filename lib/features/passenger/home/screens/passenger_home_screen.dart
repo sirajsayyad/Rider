@@ -1,392 +1,229 @@
+import 'dart:async';
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:shimmer/shimmer.dart';
+
 import '../../../../core/config/routes.dart';
 import '../../../../core/config/themes.dart';
 import '../../../../core/services/auth_service.dart';
 import '../../../../core/services/location_service.dart';
-import '../../../../core/utils/helpers.dart';
+import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/buttons/buttons.dart';
 import '../../../../core/widgets/inputs/inputs.dart';
-import '../../../../core/widgets/cards/cards.dart';
+import '../../ride/application/ride_controller.dart';
+import '../../ride/domain/ride_models.dart';
 
-/// Passenger home screen with map and booking
+class _HomeServiceItem {
+  final String id;
+  final String label;
+  final IconData icon;
+  final String? badgeText;
+  final Color? badgeColor;
+
+  const _HomeServiceItem({
+    required this.id,
+    required this.label,
+    required this.icon,
+    this.badgeText,
+    this.badgeColor,
+  });
+
+  _HomeServiceItem copyWith({
+    String? badgeText,
+    Color? badgeColor,
+  }) {
+    return _HomeServiceItem(
+      id: id,
+      label: label,
+      icon: icon,
+      badgeText: badgeText ?? this.badgeText,
+      badgeColor: badgeColor ?? this.badgeColor,
+    );
+  }
+}
+
+class _HomePromoOffer {
+  final String title;
+  final String subtitle;
+  final String cta;
+  final String imageUrl;
+  final double discountPercent;
+
+  const _HomePromoOffer({
+    required this.title,
+    required this.subtitle,
+    required this.cta,
+    required this.imageUrl,
+    required this.discountPercent,
+  });
+}
+
+final homeServicesProvider = StateNotifierProvider.autoDispose<
+    _HomeServicesNotifier, List<_HomeServiceItem>>((ref) {
+  final notifier = _HomeServicesNotifier();
+  ref.onDispose(notifier.dispose);
+  return notifier;
+});
+
+class _HomeServicesNotifier extends StateNotifier<List<_HomeServiceItem>> {
+  _HomeServicesNotifier() : super(_initialItems()) {
+    _timer =
+        Timer.periodic(const Duration(seconds: 12), (_) => _refreshBadges());
+  }
+
+  Timer? _timer;
+
+  static List<_HomeServiceItem> _initialItems() {
+    return const [
+      _HomeServiceItem(
+        id: 'ride',
+        label: 'Ride',
+        icon: Icons.local_taxi_outlined,
+        badgeText: '40%',
+        badgeColor: AppColors.error,
+      ),
+      _HomeServiceItem(
+        id: 'intercity',
+        label: 'Intercity',
+        icon: Icons.directions_car_filled_outlined,
+        badgeText: '40%',
+        badgeColor: AppColors.error,
+      ),
+      _HomeServiceItem(
+        id: 'rentals',
+        label: 'Rentals',
+        icon: Icons.car_rental_outlined,
+        badgeText: '40%',
+        badgeColor: AppColors.error,
+      ),
+      _HomeServiceItem(
+        id: 'bus',
+        label: 'Bus tickets',
+        icon: Icons.directions_bus_filled_outlined,
+        badgeText: 'Promo',
+        badgeColor: AppColors.warning,
+      ),
+      _HomeServiceItem(
+        id: 'reserve',
+        label: 'Reserve',
+        icon: Icons.event_available_outlined,
+      ),
+      _HomeServiceItem(
+        id: 'teens',
+        label: 'Teens',
+        icon: Icons.emoji_people_outlined,
+      ),
+      _HomeServiceItem(
+        id: 'seniors',
+        label: 'Seniors',
+        icon: Icons.accessibility_new_outlined,
+      ),
+      _HomeServiceItem(
+        id: 'all',
+        label: 'See all',
+        icon: Icons.grid_view_rounded,
+      ),
+    ];
+  }
+
+  void _refreshBadges() {
+    final rng = math.Random();
+    state = [
+      for (final item in state)
+        switch (item.id) {
+          'ride' || 'intercity' || 'rentals' => item.copyWith(
+              badgeText: '${rng.nextInt(4) * 10 + 10}%',
+              badgeColor: AppColors.error,
+            ),
+          'bus' => item.copyWith(
+              badgeText: rng.nextBool() ? 'Promo' : 'New',
+              badgeColor:
+                  rng.nextBool() ? AppColors.warning : AppColors.primary,
+            ),
+          _ => item,
+        }
+    ];
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+}
+
+final homePromoProvider =
+    StateNotifierProvider.autoDispose<_HomePromoNotifier, _HomePromoOffer>(
+        (ref) {
+  final notifier = _HomePromoNotifier();
+  ref.onDispose(notifier.dispose);
+  return notifier;
+});
+
+class _HomePromoNotifier extends StateNotifier<_HomePromoOffer> {
+  _HomePromoNotifier() : super(_offers.first) {
+    _timer = Timer.periodic(const Duration(seconds: 10), (_) => _next());
+  }
+
+  static const _offers = <_HomePromoOffer>[
+    _HomePromoOffer(
+      title: 'Enjoy 40% off Sedan',
+      subtitle: 'Intercity',
+      cta: 'Book now',
+      imageUrl:
+          'https://images.unsplash.com/photo-1493238792000-8113da705763?auto=format&fit=crop&w=600&q=80',
+      discountPercent: 40,
+    ),
+    _HomePromoOffer(
+      title: 'Save 20% on Rentals',
+      subtitle: 'Hourly packages',
+      cta: 'Explore',
+      imageUrl:
+          'https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=600&q=80',
+      discountPercent: 20,
+    ),
+    _HomePromoOffer(
+      title: 'Flat 15% off airport rides',
+      subtitle: 'Limited time',
+      cta: 'Apply deal',
+      imageUrl:
+          'https://images.unsplash.com/photo-1526662092594-e98c1e356d6a?auto=format&fit=crop&w=600&q=80',
+      discountPercent: 15,
+    ),
+  ];
+
+  Timer? _timer;
+  int _index = 0;
+
+  void _next() {
+    _index = (_index + 1) % _offers.length;
+    state = _offers[_index];
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+}
+
 class PassengerHomeScreen extends ConsumerStatefulWidget {
   const PassengerHomeScreen({super.key});
 
   @override
-  ConsumerState<PassengerHomeScreen> createState() => _PassengerHomeScreenState();
+  ConsumerState<PassengerHomeScreen> createState() =>
+      _PassengerHomeScreenState();
 }
 
-class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> {
-  String? _pickupAddress;
-  String? _dropAddress;
-  bool _isLoadingLocation = true;
+class _ServicesGrid extends StatelessWidget {
+  const _ServicesGrid({required this.items, required this.onTapService});
 
-  @override
-  void initState() {
-    super.initState();
-    _getCurrentLocation();
-  }
-
-  Future<void> _getCurrentLocation() async {
-    final locationService = ref.read(locationServiceProvider);
-    final location = await locationService.getCurrentLocationWithAddress();
-    
-    if (mounted && location != null) {
-      setState(() {
-        _pickupAddress = location.address ?? 'Current Location';
-        _isLoadingLocation = false;
-      });
-    } else if (mounted) {
-      setState(() => _isLoadingLocation = false);
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final user = ref.watch(currentUserProvider);
-
-    return Scaffold(
-      body: Stack(
-        children: [
-          // Map placeholder (would be Google Maps in production)
-          Container(
-            width: double.infinity,
-            height: double.infinity,
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: isDark
-                    ? [
-                        const Color(0xFF1a1a2e),
-                        const Color(0xFF16213e),
-                      ]
-                    : [
-                        const Color(0xFFe8f4ea),
-                        const Color(0xFFd4e6d9),
-                      ],
-              ),
-            ),
-            child: CustomPaint(
-              painter: _MapGridPainter(isDark: isDark),
-            ),
-          ),
-
-          // Top header with greeting
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.all(AppSpacing.md),
-              child: GlassCard(
-                padding: const EdgeInsets.all(AppSpacing.md),
-                child: Row(
-                  children: [
-                    CircleAvatar(
-                      radius: 24,
-                      backgroundColor: AppColors.primary.withOpacity(0.1),
-                      child: Text(
-                        (user?.name ?? 'U')[0].toUpperCase(),
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primary,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: AppSpacing.md),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            Helpers.getGreeting(),
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: isDark
-                                  ? AppColors.darkTextSecondary
-                                  : AppColors.lightTextSecondary,
-                            ),
-                          ),
-                          Text(
-                            user?.name ?? 'User',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: isDark
-                                  ? AppColors.darkText
-                                  : AppColors.lightText,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              if (_isLoadingLocation) ...[
-                                const SizedBox(
-                                  width: 14,
-                                  height: 14,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: AppColors.primary,
-                                  ),
-                                ),
-                                const SizedBox(width: 6),
-                                Text(
-                                  'Locating...',
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: isDark
-                                        ? AppColors.darkTextSecondary
-                                        : AppColors.lightTextSecondary,
-                                  ),
-                                ),
-                              ] else ...[
-                                const Icon(
-                                  Icons.location_on,
-                                  size: 16,
-                                  color: AppColors.primary,
-                                ),
-                                const SizedBox(width: 6),
-                                Flexible(
-                                  child: Text(
-                                    _pickupAddress ?? 'Current Location',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color: isDark
-                                          ? AppColors.darkTextSecondary
-                                          : AppColors.lightTextSecondary,
-                                    ),
-                                    overflow: TextOverflow.ellipsis,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        ],
-                      ),
-                    ),
-                    CircularIconButton(
-                      icon: Icons.notifications_outlined,
-                      onPressed: () {},
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          // Current location marker (center of screen)
-          Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 20,
-                  height: 20,
-                  decoration: BoxDecoration(
-                    color: AppColors.primary,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: Colors.white, width: 3),
-                    boxShadow: [
-                      BoxShadow(
-                        color: AppColors.primary.withOpacity(0.3),
-                        blurRadius: 8,
-                        spreadRadius: 2,
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  width: 2,
-                  height: 12,
-                  color: AppColors.primary.withOpacity(0.5),
-                ),
-              ],
-            ),
-          ),
-
-          // Bottom booking panel
-          Positioned(
-            bottom: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.darkSurface : AppColors.lightSurface,
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(AppRadius.xl),
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.1),
-                    blurRadius: 20,
-                    offset: const Offset(0, -5),
-                  ),
-                ],
-              ),
-              child: SafeArea(
-                top: false,
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.lg),
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      // Drag handle
-                      Container(
-                        width: 40,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: isDark
-                              ? AppColors.darkBorder
-                              : AppColors.lightBorder,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                      const SizedBox(height: AppSpacing.lg),
-
-                      // Where to? search bar
-                      LocationInput(
-                        label: 'Where to?',
-                        hint: 'Enter your destination',
-                        value: _dropAddress,
-                        icon: Icons.search,
-                        iconColor: AppColors.primary,
-                        onTap: () {
-                          context.push(Routes.booking);
-                        },
-                      ),
-
-                      const SizedBox(height: AppSpacing.md),
-
-                      // Quick destinations
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _QuickDestinationChip(
-                              icon: Icons.home_rounded,
-                              label: 'Home',
-                              onTap: () => _setQuickDestination('Home'),
-                            ),
-                          ),
-                          const SizedBox(width: AppSpacing.sm),
-                          Expanded(
-                            child: _QuickDestinationChip(
-                              icon: Icons.work_rounded,
-                              label: 'Work',
-                              onTap: () => _setQuickDestination('Work'),
-                            ),
-                          ),
-                          const SizedBox(width: AppSpacing.sm),
-                          Expanded(
-                            child: _QuickDestinationChip(
-                              icon: Icons.schedule_rounded,
-                              label: 'Schedule',
-                              onTap: () {},
-                            ),
-                          ),
-                        ],
-                      ),
-
-                      const SizedBox(height: AppSpacing.lg),
-
-                      // Recent locations
-                      _RecentLocations(),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-
-          // SOS button
-          Positioned(
-            right: AppSpacing.md,
-            bottom: MediaQuery.of(context).size.height * 0.35,
-            child: SosButton(
-              onPressed: () => context.push(Routes.sos),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _setQuickDestination(String label) {
-    // TODO: Get saved location and navigate to booking
-    context.push(Routes.booking);
-  }
-}
-
-class _QuickDestinationChip extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback? onTap;
-
-  const _QuickDestinationChip({
-    required this.icon,
-    required this.label,
-    this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-
-    return Material(
-      color: isDark ? AppColors.darkCard : AppColors.lightBackground,
-      borderRadius: BorderRadius.circular(AppRadius.md),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppSpacing.md,
-            vertical: AppSpacing.sm,
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                icon,
-                size: 18,
-                color: isDark
-                    ? AppColors.darkTextSecondary
-                    : AppColors.lightTextSecondary,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w500,
-                  color: isDark
-                      ? AppColors.darkText
-                      : AppColors.lightText,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _RecentLocations extends StatelessWidget {
-  // Demo recent locations
-  final List<Map<String, String>> _recentLocations = const [
-    {
-      'name': 'Connaught Place',
-      'address': 'Block F, Connaught Place, New Delhi',
-    },
-    {
-      'name': 'India Gate',
-      'address': 'Rajpath, New Delhi',
-    },
-  ];
+  final List<_HomeServiceItem> items;
+  final ValueChanged<_HomeServiceItem> onTapService;
 
   @override
   Widget build(BuildContext context) {
@@ -395,140 +232,633 @@ class _RecentLocations extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'Recent',
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: isDark ? AppColors.darkText : AppColors.lightText,
-          ),
+        Row(
+          children: [
+            Text(
+              'For you',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const Spacer(),
+            InkWell(
+              onTap: () {},
+              borderRadius: BorderRadius.circular(AppRadius.full),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppSpacing.sm,
+                  vertical: 6,
+                ),
+                child: Icon(
+                  Icons.arrow_forward_rounded,
+                  size: 18,
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.lightTextSecondary,
+                ),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: AppSpacing.sm),
-        ..._recentLocations.map((location) => _buildLocationItem(
-          context,
-          location['name']!,
-          location['address']!,
-          isDark,
-        )),
+        GridView.count(
+          crossAxisCount: 4,
+          mainAxisSpacing: AppSpacing.sm,
+          crossAxisSpacing: AppSpacing.sm,
+          childAspectRatio: 1,
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          children: items
+              .map(
+                (item) => _ServiceTile(
+                  label: item.label,
+                  icon: item.icon,
+                  badgeText: item.badgeText,
+                  badgeColor: item.badgeColor,
+                  onTap: () => onTapService(item),
+                ),
+              )
+              .toList(),
+        ),
       ],
     );
   }
+}
 
-  Widget _buildLocationItem(
-    BuildContext context,
-    String name,
-    String address,
-    bool isDark,
-  ) {
+class _ServiceTile extends StatelessWidget {
+  const _ServiceTile({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+    this.badgeText,
+    this.badgeColor,
+  });
+
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+  final String? badgeText;
+  final Color? badgeColor;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Material(
-      color: Colors.transparent,
+      color: isDark ? AppColors.darkCard : AppColors.lightCard,
+      borderRadius: BorderRadius.circular(AppRadius.lg),
       child: InkWell(
-        onTap: () {
-          context.push(Routes.booking);
-        },
-        borderRadius: BorderRadius.circular(AppRadius.md),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: AppSpacing.sm),
-          child: Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? AppColors.darkCard
-                      : AppColors.lightBackground,
-                  borderRadius: BorderRadius.circular(AppRadius.sm),
-                ),
-                child: const Icon(
-                  Icons.history,
-                  size: 20,
-                  color: Colors.grey,
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(AppSpacing.sm),
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    icon,
+                    size: 26,
+                    color: isDark ? AppColors.darkText : AppColors.lightText,
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    label,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+            if (badgeText != null && badgeText!.isNotEmpty)
+              Positioned(
+                top: 8,
+                left: 8,
+                child: Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: (badgeColor ?? AppColors.primary).withOpacity(0.95),
+                    borderRadius: BorderRadius.circular(AppRadius.full),
+                  ),
+                  child: Text(
+                    badgeText!,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ),
-              const SizedBox(width: AppSpacing.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      name,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        color: isDark
-                            ? AppColors.darkText
-                            : AppColors.lightText,
-                      ),
-                    ),
-                    Text(
-                      address,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: isDark
-                            ? AppColors.darkTextSecondary
-                            : AppColors.lightTextSecondary,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+          ],
         ),
       ),
     );
   }
 }
 
-// Custom painter for map grid background
-class _MapGridPainter extends CustomPainter {
+class _PromoBannerCard extends StatelessWidget {
+  const _PromoBannerCard({required this.promo});
+
+  final _HomePromoOffer promo;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkCard : Colors.white,
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        boxShadow: AppShadows.medium,
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(AppRadius.xl),
+        child: Row(
+          children: [
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(AppSpacing.lg),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      promo.title,
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      promo.subtitle,
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            color: isDark
+                                ? AppColors.darkTextSecondary
+                                : AppColors.lightTextSecondary,
+                          ),
+                    ),
+                    const SizedBox(height: AppSpacing.md),
+                    SizedBox(
+                      height: 38,
+                      child: ElevatedButton(
+                        onPressed: () => context.push(Routes.booking),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: isDark
+                              ? AppColors.darkSurface
+                              : AppColors.lightSurface,
+                          foregroundColor:
+                              isDark ? AppColors.darkText : AppColors.lightText,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(horizontal: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(AppRadius.full),
+                          ),
+                        ),
+                        child: const Text(
+                          '',
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SizedBox(
+              width: 140,
+              height: 120,
+              child: CachedNetworkImage(
+                imageUrl: promo.imageUrl,
+                fit: BoxFit.cover,
+                placeholder: (context, url) => const _PromoImageShimmer(),
+                errorWidget: (context, url, error) => Container(
+                  color:
+                      isDark ? AppColors.darkSurface : AppColors.lightSurface,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PromoImageShimmer extends StatelessWidget {
+  const _PromoImageShimmer();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final base = isDark ? AppColors.darkSurface : AppColors.lightSurface;
+
+    return Shimmer.fromColors(
+      baseColor: base,
+      highlightColor: base.withOpacity(0.6),
+      child: Container(color: base),
+    );
+  }
+}
+
+class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> {
+  bool _didInitLocation = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_didInitLocation) return;
+    _didInitLocation = true;
+    Future.microtask(() async {
+      final locationService = ref.read(locationServiceProvider);
+      await ref
+          .read(rideControllerProvider.notifier)
+          .setPickupFromCurrentLocation(locationService);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final user = ref.watch(currentUserProvider);
+    final ride = ref.watch(rideControllerProvider);
+    final services = ref.watch(homeServicesProvider);
+    final promo = ref.watch(homePromoProvider);
+
+    return Scaffold(
+      body: Stack(
+        children: [
+          _MapBackdrop(isDark: isDark),
+          SafeArea(
+            child: ListView(
+              padding: const EdgeInsets.all(AppSpacing.md),
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.md),
+                  decoration: BoxDecoration(
+                    color: (isDark
+                            ? AppColors.darkSurface
+                            : AppColors.lightSurface)
+                        .withOpacity(0.92),
+                    borderRadius: BorderRadius.circular(AppRadius.xl),
+                    boxShadow: AppShadows.medium,
+                  ),
+                  child: Row(
+                    children: [
+                      CircleAvatar(
+                        radius: 22,
+                        backgroundColor: AppColors.primary.withOpacity(0.12),
+                        child: Text(
+                          (user?.name ?? 'R')[0].toUpperCase(),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: AppSpacing.md),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'Smart pickup',
+                              style: TextStyle(
+                                color: isDark
+                                    ? AppColors.darkTextSecondary
+                                    : AppColors.lightTextSecondary,
+                                fontSize: 12,
+                              ),
+                            ),
+                            Text(
+                              ride.pickup?.address ?? 'Fetching location...',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                color: isDark
+                                    ? AppColors.darkText
+                                    : AppColors.lightText,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      CircularIconButton(
+                        icon: Icons.notifications_none_rounded,
+                        onPressed: () => context.push(Routes.notifications),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.lg),
+                Container(
+                  padding: const EdgeInsets.all(AppSpacing.lg),
+                  decoration: BoxDecoration(
+                    color:
+                        isDark ? AppColors.darkSurface : AppColors.lightSurface,
+                    borderRadius: BorderRadius.circular(AppRadius.xl),
+                    boxShadow: AppShadows.large,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Reliable ride booking',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: AppSpacing.xs),
+                      Text(
+                        'No-cancellation reassignment, fare lock, live safety, and faster matching.',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      LocationInput(
+                        label: 'Where to?',
+                        hint: 'Enter destination',
+                        value: ride.destination?.address,
+                        icon: Icons.search_rounded,
+                        onTap: () => context.push(Routes.booking),
+                      ),
+                      const SizedBox(height: AppSpacing.lg),
+                      _ServicesGrid(
+                        items: services,
+                        onTapService: (service) {
+                          context.push(Routes.booking);
+                        },
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      _PromoBannerCard(promo: promo),
+                      const SizedBox(height: AppSpacing.md),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: _MetricCard(
+                              title: 'Wallet',
+                              value: Formatters.currency(ride.walletBalance),
+                              icon: Icons.account_balance_wallet_outlined,
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          Expanded(
+                            child: _MetricCard(
+                              title: 'Rewards',
+                              value: '${ride.rewardPoints} pts',
+                              icon: Icons.stars_outlined,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: AppSpacing.md),
+                      PrimaryButton(
+                        text: ride.activeTrip == null
+                            ? 'Book A Ride'
+                            : 'Track Active Ride',
+                        icon: Icons.local_taxi_rounded,
+                        onPressed: () {
+                          if (ride.activeTrip == null) {
+                            context.push(Routes.booking);
+                          } else {
+                            context.push(
+                                '/passenger/tracking/${ride.activeTrip!.id}');
+                          }
+                        },
+                      ),
+                      const SizedBox(height: AppSpacing.sm),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: SecondaryButton(
+                              text: 'Rewards',
+                              icon: Icons.stars_rounded,
+                              onPressed: () => context.push(Routes.rewards),
+                            ),
+                          ),
+                          const SizedBox(width: AppSpacing.sm),
+                          Expanded(
+                            child: SecondaryButton(
+                              text: 'Trips',
+                              icon: Icons.history_rounded,
+                              onPressed: () => context.push(Routes.tripHistory),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: AppSpacing.md),
+                if (ride.nearbyDrivers.isNotEmpty)
+                  _NearbyDriversPreview(drivers: ride.nearbyDrivers),
+                const SizedBox(height: AppSpacing.md),
+                if (ride.activeTrip != null)
+                  _ActiveRideTile(trip: ride.activeTrip!),
+              ],
+            ),
+          ),
+          Positioned(
+            right: AppSpacing.md,
+            bottom: MediaQuery.of(context).size.height * 0.14,
+            child: SosButton(onPressed: () => context.push(Routes.sos)),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MapBackdrop extends StatelessWidget {
+  const _MapBackdrop({required this.isDark});
+
   final bool isDark;
 
-  _MapGridPainter({required this.isDark});
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: isDark
+              ? const [Color(0xFF0f2027), Color(0xFF203a43), Color(0xFF2c5364)]
+              : const [Color(0xFFDDF2EB), Color(0xFFC9E6EF), Color(0xFFE7F0FF)],
+        ),
+      ),
+      child: CustomPaint(
+        size: Size.infinite,
+        painter: _RoadPainter(isDark: isDark),
+      ),
+    );
+  }
+}
+
+class _RoadPainter extends CustomPainter {
+  const _RoadPainter({required this.isDark});
+  final bool isDark;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = (isDark ? Colors.white : Colors.grey).withOpacity(0.1)
+    final gridPaint = Paint()
+      ..color = (isDark ? Colors.white : Colors.black).withOpacity(0.07)
       ..strokeWidth = 1;
-
-    const gridSize = 40.0;
-
-    // Draw vertical lines
-    for (double x = 0; x < size.width; x += gridSize) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
+    for (double x = 0; x < size.width; x += 32) {
+      canvas.drawLine(Offset(x, 0), Offset(x, size.height), gridPaint);
+    }
+    for (double y = 0; y < size.height; y += 32) {
+      canvas.drawLine(Offset(0, y), Offset(size.width, y), gridPaint);
     }
 
-    // Draw horizontal lines
-    for (double y = 0; y < size.height; y += gridSize) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-
-    // Draw some random "road" lines
-    final roadPaint = Paint()
-      ..color = (isDark ? Colors.white : Colors.grey).withOpacity(0.2)
-      ..strokeWidth = 3;
-
-    canvas.drawLine(
-      Offset(0, size.height * 0.4),
-      Offset(size.width, size.height * 0.4),
-      roadPaint,
-    );
-    canvas.drawLine(
-      Offset(size.width * 0.3, 0),
-      Offset(size.width * 0.3, size.height),
-      roadPaint,
-    );
-    canvas.drawLine(
-      Offset(size.width * 0.7, 0),
-      Offset(size.width * 0.7, size.height),
-      roadPaint,
-    );
+    final routePaint = Paint()
+      ..color = AppColors.primary.withOpacity(0.25)
+      ..strokeWidth = 6
+      ..strokeCap = StrokeCap.round;
+    final path = Path()
+      ..moveTo(size.width * 0.1, size.height * 0.7)
+      ..quadraticBezierTo(
+        size.width * 0.4,
+        size.height * 0.55,
+        size.width * 0.85,
+        size.height * 0.3,
+      );
+    canvas.drawPath(path, routePaint);
   }
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class _MetricCard extends StatelessWidget {
+  const _MetricCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+  });
+
+  final String title;
+  final String value;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: AppColors.primary.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(AppRadius.md),
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: AppColors.primary),
+          const SizedBox(width: AppSpacing.sm),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: Theme.of(context).textTheme.bodySmall),
+                Text(value,
+                    style: const TextStyle(fontWeight: FontWeight.w700)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NearbyDriversPreview extends StatelessWidget {
+  const _NearbyDriversPreview({required this.drivers});
+  final List<NearbyDriverPreview> drivers;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        color: Theme.of(context).brightness == Brightness.dark
+            ? AppColors.darkSurface
+            : AppColors.lightSurface,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Nearest drivers',
+              style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: AppSpacing.sm),
+          ...drivers.map(
+            (driver) => Padding(
+              padding: const EdgeInsets.only(bottom: 10),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: AppColors.primary.withOpacity(0.12),
+                    child: Text(driver.name[0]),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: Text(
+                      '${driver.name} • ${driver.vehicleModel}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  Text('${driver.etaMinutes} min'),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ActiveRideTile extends StatelessWidget {
+  const _ActiveRideTile({required this.trip});
+  final RideTrip trip;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = trip.status.name;
+    return Container(
+      padding: const EdgeInsets.all(AppSpacing.md),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        color: AppColors.primary.withOpacity(0.1),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.pin_drop_rounded, color: AppColors.primary),
+              const SizedBox(width: AppSpacing.sm),
+              Expanded(
+                child: Text(
+                  '${trip.driver?.name ?? 'Driver'} • ${Formatters.currency(trip.fare)} • $status',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontWeight: FontWeight.w600),
+                ),
+              ),
+            ],
+          ),
+          if (trip.compensations.isNotEmpty) ...[
+            const SizedBox(height: AppSpacing.sm),
+            Text(
+              'Compensation added: ${Formatters.currency(trip.compensations.first.amount)}',
+              style: const TextStyle(
+                  color: AppColors.success, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
 }

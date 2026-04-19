@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:shimmer/shimmer.dart';
 import '../../../../core/config/themes.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/cards/cards.dart';
@@ -11,6 +13,27 @@ class AdminDashboardScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final promoBanners = <Map<String, String>>[
+      {
+        'title': 'Peak Hour Insights',
+        'subtitle': 'Live demand zones & surge trends',
+        'imageUrl':
+            'https://images.unsplash.com/photo-1526662092594-e98c1e356d6a?auto=format&fit=crop&w=1600&q=80',
+      },
+      {
+        'title': 'Driver Quality',
+        'subtitle': 'Verify documents faster with smart checks',
+        'imageUrl':
+            'https://images.unsplash.com/photo-1557804506-669a67965ba0?auto=format&fit=crop&w=1600&q=80',
+      },
+      {
+        'title': 'Safety & SOS',
+        'subtitle': 'Faster response with admin escalation',
+        'imageUrl':
+            'https://images.unsplash.com/photo-1520975958225-635a3b1b59b9?auto=format&fit=crop&w=1600&q=80',
+      },
+    ];
 
     // Demo statistics
     final stats = {
@@ -59,6 +82,12 @@ class AdminDashboardScreen extends ConsumerWidget {
                     ? AppColors.darkTextSecondary
                     : AppColors.lightTextSecondary,
               ),
+            ),
+
+            const SizedBox(height: AppSpacing.xl),
+
+            _DashboardPromoCarousel(
+              items: promoBanners,
             ),
 
             const SizedBox(height: AppSpacing.xl),
@@ -129,14 +158,16 @@ class AdminDashboardScreen extends ConsumerWidget {
                       Expanded(
                         child: _RevenueChip(
                           label: 'Today',
-                          value: Formatters.currency(stats['todayRevenue'] as double),
+                          value: Formatters.currency(
+                              stats['todayRevenue'] as double),
                         ),
                       ),
                       const SizedBox(width: AppSpacing.md),
                       Expanded(
                         child: _RevenueChip(
                           label: 'This Week',
-                          value: Formatters.currency(stats['weeklyRevenue'] as double),
+                          value: Formatters.currency(
+                              stats['weeklyRevenue'] as double),
                         ),
                       ),
                     ],
@@ -605,6 +636,277 @@ class _DrawerItem extends StatelessWidget {
       ),
       selected: isSelected,
       onTap: onTap,
+    );
+  }
+}
+
+class _DashboardPromoCarousel extends StatefulWidget {
+  final List<Map<String, String>> items;
+
+  const _DashboardPromoCarousel({
+    required this.items,
+  });
+
+  @override
+  State<_DashboardPromoCarousel> createState() =>
+      _DashboardPromoCarouselState();
+}
+
+class _DashboardPromoCarouselState extends State<_DashboardPromoCarousel> {
+  late final PageController _controller;
+  int _index = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = PageController(viewportFraction: 0.92);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _openPreview(int index) {
+    final item = widget.items[index];
+    final imageUrl = item['imageUrl'];
+    if (imageUrl == null) return;
+
+    Navigator.of(context).push(
+      PageRouteBuilder(
+        opaque: false,
+        barrierColor: Colors.black.withOpacity(0.75),
+        pageBuilder: (context, animation, secondaryAnimation) {
+          return FadeTransition(
+            opacity: animation,
+            child: Scaffold(
+              backgroundColor: Colors.transparent,
+              body: SafeArea(
+                child: Stack(
+                  children: [
+                    Center(
+                      child: Hero(
+                        tag: '_admin_promo_$index',
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(AppRadius.xl),
+                          child: CachedNetworkImage(
+                            imageUrl: imageUrl,
+                            fit: BoxFit.cover,
+                            placeholder: (context, url) => _ShimmerBanner(
+                              height: MediaQuery.of(context).size.height * 0.6,
+                            ),
+                            errorWidget: (context, url, error) => Container(
+                              width: double.infinity,
+                              height: MediaQuery.of(context).size.height * 0.6,
+                              color: Colors.black26,
+                              child: const Center(
+                                child: Icon(
+                                  Icons.broken_image_outlined,
+                                  color: Colors.white70,
+                                  size: 36,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: IconButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withOpacity(0.35),
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(Icons.close, color: Colors.white),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              'Highlights',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+                color: isDark ? AppColors.darkText : AppColors.lightText,
+              ),
+            ),
+            const Spacer(),
+            Text(
+              '${_index + 1}/${widget.items.length}',
+              style: TextStyle(
+                fontSize: 12,
+                color: isDark
+                    ? AppColors.darkTextSecondary
+                    : AppColors.lightTextSecondary,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: AppSpacing.md),
+        SizedBox(
+          height: 140,
+          child: PageView.builder(
+            controller: _controller,
+            itemCount: widget.items.length,
+            onPageChanged: (value) => setState(() => _index = value),
+            itemBuilder: (context, index) {
+              final item = widget.items[index];
+              final title = item['title'] ?? '';
+              final subtitle = item['subtitle'] ?? '';
+              final imageUrl = item['imageUrl'] ?? '';
+
+              return Padding(
+                padding: const EdgeInsets.only(right: AppSpacing.md),
+                child: Material(
+                  color: Colors.transparent,
+                  child: InkWell(
+                    onTap: () => _openPreview(index),
+                    borderRadius: BorderRadius.circular(AppRadius.xl),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(AppRadius.xl),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          Hero(
+                            tag: '_admin_promo_$index',
+                            child: CachedNetworkImage(
+                              imageUrl: imageUrl,
+                              fit: BoxFit.cover,
+                              placeholder: (context, url) =>
+                                  const _ShimmerBanner(height: 140),
+                              errorWidget: (context, url, error) => Container(
+                                color: isDark
+                                    ? AppColors.darkCard
+                                    : AppColors.lightCard,
+                                child: Icon(
+                                  Icons.broken_image_outlined,
+                                  color: isDark
+                                      ? AppColors.darkTextSecondary
+                                      : AppColors.lightTextSecondary,
+                                ),
+                              ),
+                            ),
+                          ),
+                          DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Colors.black.withOpacity(0.15),
+                                  Colors.black.withOpacity(0.65),
+                                ],
+                              ),
+                            ),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.all(AppSpacing.md),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.end,
+                              children: [
+                                Text(
+                                  title,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  subtitle,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    color: Colors.white70,
+                                    fontSize: 12,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        const SizedBox(height: AppSpacing.md),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(widget.items.length, (i) {
+            final selected = i == _index;
+            return AnimatedContainer(
+              duration: const Duration(milliseconds: 220),
+              margin: const EdgeInsets.symmetric(horizontal: 4),
+              width: selected ? 18 : 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: selected
+                    ? AppColors.primary
+                    : (isDark
+                        ? AppColors.darkTextTertiary
+                        : AppColors.lightTextTertiary),
+                borderRadius: BorderRadius.circular(99),
+              ),
+            );
+          }),
+        ),
+      ],
+    );
+  }
+}
+
+class _ShimmerBanner extends StatelessWidget {
+  final double height;
+
+  const _ShimmerBanner({
+    required this.height,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final base = isDark ? AppColors.darkCard : AppColors.lightCard;
+
+    return Shimmer.fromColors(
+      baseColor: base,
+      highlightColor: base.withOpacity(0.6),
+      child: Container(
+        height: height,
+        color: base,
+      ),
     );
   }
 }

@@ -83,10 +83,21 @@ class LocationService {
     try {
       final location = await getCurrentLocation();
       if (location == null) return null;
-      
-      return await getAddressFromCoordinates(
+
+      final withAddress = await getAddressFromCoordinates(
         location.latitude,
         location.longitude,
+      );
+      return LocationData(
+        latitude: withAddress.latitude,
+        longitude: withAddress.longitude,
+        address: (withAddress.address?.isNotEmpty ?? false)
+            ? withAddress.address
+            : 'Current Location',
+        city: withAddress.city,
+        state: withAddress.state,
+        country: withAddress.country,
+        postalCode: withAddress.postalCode,
       );
     } catch (e) {
       debugPrint('Error getting location with address: $e');
@@ -101,16 +112,12 @@ class LocationService {
       
       if (placemarks.isNotEmpty) {
         final place = placemarks.first;
-        final addressParts = [
-          place.subLocality,
-          place.locality,
-          place.subAdministrativeArea,
-        ].where((part) => part != null && part.isNotEmpty).toList();
+        final formattedAddress = _formatPlacemarkAddress(place);
         
         return LocationData(
           latitude: lat,
           longitude: lng,
-          address: addressParts.join(', '),
+          address: formattedAddress,
           city: place.locality,
           state: place.administrativeArea,
           country: place.country,
@@ -132,10 +139,20 @@ class LocationService {
       
       if (locations.isNotEmpty) {
         final location = locations.first;
+        final resolved = await getAddressFromCoordinates(
+          location.latitude,
+          location.longitude,
+        );
         return LocationData(
-          latitude: location.latitude,
-          longitude: location.longitude,
-          address: address,
+          latitude: resolved.latitude,
+          longitude: resolved.longitude,
+          address: (resolved.address?.isNotEmpty ?? false)
+              ? resolved.address
+              : address,
+          city: resolved.city,
+          state: resolved.state,
+          country: resolved.country,
+          postalCode: resolved.postalCode,
         );
       }
       
@@ -144,6 +161,23 @@ class LocationService {
       debugPrint('Error in forward geocoding: $e');
       return null;
     }
+  }
+
+  String? _formatPlacemarkAddress(Placemark place) {
+    final addressParts = [
+      place.name,
+      place.street,
+      place.subLocality,
+      place.locality,
+      place.subAdministrativeArea,
+      place.administrativeArea,
+    ]
+        .where((part) => part != null && part.isNotEmpty)
+        .cast<String>()
+        .toSet()
+        .toList();
+
+    return addressParts.isEmpty ? null : addressParts.join(', ');
   }
   
   /// Calculate distance between two points in kilometers
@@ -166,16 +200,27 @@ class LocationService {
     int distanceFilter = 10,
     LocationAccuracy accuracy = LocationAccuracy.high,
   }) {
+    _positionSubscription?.cancel();
     _positionSubscription = Geolocator.getPositionStream(
       locationSettings: LocationSettings(
         accuracy: accuracy,
         distanceFilter: distanceFilter,
       ),
-    ).listen((position) {
-      _locationController.add(LocationData(
-        latitude: position.latitude,
-        longitude: position.longitude,
-      ));
+    ).listen((position) async {
+      try {
+        final withAddress = await getAddressFromCoordinates(
+          position.latitude,
+          position.longitude,
+        );
+        _locationController.add(withAddress);
+      } catch (_) {
+        _locationController.add(
+          LocationData(
+            latitude: position.latitude,
+            longitude: position.longitude,
+          ),
+        );
+      }
     });
   }
   

@@ -6,11 +6,28 @@ allprojects {
 }
 
 rootProject.buildDir = "../build"
+
 subprojects {
     project.buildDir = "${rootProject.buildDir}/${project.name}"
 }
+
 subprojects {
     project.evaluationDependsOn(":app")
+}
+
+// Inject `flutter` properties into sub-projects that use the old-style
+// plugin format (apply plugin: 'com.android.library') and reference
+// flutter.compileSdkVersion / flutter.minSdkVersion.
+subprojects { sub ->
+    sub.beforeEvaluate {
+        if (!sub.hasProperty("flutter")) {
+            sub.ext.flutter = [
+                compileSdkVersion: 35,
+                minSdkVersion    : 21,
+                targetSdkVersion : 34,
+            ]
+        }
+    }
 }
 
 tasks.register("clean", Delete) {
