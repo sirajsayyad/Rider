@@ -30,6 +30,19 @@ import '../../features/driver/profile/screens/driver_profile_screen.dart';
 
 import '../../features/admin/dashboard/screens/admin_dashboard_screen.dart';
 
+// Feature imports
+import '../../features/shared/chat/screens/live_chat_screen.dart';
+import '../../features/passenger/scheduling/screens/schedule_ride_screen.dart';
+import '../../features/shared/calls/screens/call_screen.dart';
+import '../../features/shared/ratings/screens/rating_screen.dart';
+import '../../features/passenger/referral/screens/referral_screen.dart';
+import '../../features/corporate/screens/corporate_dashboard_screen.dart';
+import '../../features/passenger/subscription/screens/subscription_plans_screen.dart';
+import '../../features/shared/lost_found/screens/lost_found_screen.dart';
+import '../../features/passenger/profile/screens/profile_features_screens.dart';
+import '../../features/passenger/services/screens/passenger_services_screen.dart';
+import '../../features/passenger/services/screens/service_features_screens.dart';
+
 /// Route paths
 class Routes {
   // Auth Routes
@@ -46,7 +59,6 @@ class Routes {
   static const String passengerServicesTab = '/passenger/services';
   static const String passengerActivityTab = '/passenger/activity';
   static const String passengerAccountTab = '/passenger/account';
-  static const String passengerForYouTab = '/passenger/for-you';
   static const String booking = '/passenger/booking';
   static const String driverSearching = '/passenger/searching';
   static const String tracking = '/passenger/tracking/:rideId';
@@ -60,6 +72,38 @@ class Routes {
   static const String notifications = '/passenger/notifications';
   static const String chat = '/passenger/chat';
   static const String rewards = '/passenger/rewards';
+
+  // New Feature Routes
+  static const String liveChat = '/passenger/live-chat';
+  static const String scheduleRide = '/passenger/schedule';
+  static const String voiceCall = '/call';
+  static const String rateDriver = '/passenger/rate/:rideId';
+  static const String referral = '/passenger/referral';
+  static const String corporateDashboard = '/corporate';
+  static const String subscriptionPlans = '/passenger/subscription';
+  static const String lostFound = '/lost-found';
+
+  // Profile Features Routes
+  static const String profileEarnDriving = '/passenger/profile/earn';
+  static const String profileCo2Saved = '/passenger/profile/co2';
+  static const String profileSendGift = '/passenger/profile/gift';
+  static const String profileSafetyCheckup = '/passenger/profile/safety';
+  static const String profileInsurance = '/passenger/profile/insurance';
+  static const String profileFamily = '/passenger/profile/family';
+  static const String profileTeens = '/passenger/profile/teens';
+  static const String profileBusinessSetup = '/passenger/profile/business-setup';
+  static const String profileManageAccount = '/passenger/profile/manage';
+  static const String profileSavedGroup = '/passenger/profile/saved-group';
+  static const String profileSettings = '/passenger/profile/settings';
+  static const String profileSimpleMode = '/passenger/profile/simple-mode';
+  static const String profileLegal = '/passenger/profile/legal';
+
+  // Services Features Routes
+  static const String serviceIntercity = '/passenger/services/intercity';
+  static const String serviceRentals = '/passenger/services/rentals';
+  static const String serviceBusTickets = '/passenger/services/bus-tickets';
+  static const String serviceSeniors = '/passenger/services/seniors';
+  static const String serviceSeeAll = '/passenger/services/all';
 
   // Driver Routes
   static const String driverHome = '/driver';
@@ -120,7 +164,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           GoRoute(
             path: Routes.passengerServicesTab,
-            builder: (context, state) => const TripHistoryScreen(),
+            builder: (context, state) => const PassengerServicesScreen(),
           ),
           GoRoute(
             path: Routes.passengerActivityTab,
@@ -129,10 +173,6 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: Routes.passengerAccountTab,
             builder: (context, state) => const PassengerProfileScreen(),
-          ),
-          GoRoute(
-            path: Routes.passengerForYouTab,
-            builder: (context, state) => const PassengerHomeScreen(),
           ),
           GoRoute(
             path: Routes.tripHistory,
@@ -191,6 +231,80 @@ final routerProvider = Provider<GoRouter>((ref) {
         path: Routes.rewards,
         builder: (context, state) => const RewardsScreen(),
       ),
+
+      // === New Feature Routes ===
+      GoRoute(
+        path: Routes.liveChat,
+        builder: (context, state) {
+          final extra = state.extra as Map<String, String>?;
+          return LiveChatScreen(
+            rideId: extra?['rideId'],
+            driverName: extra?['driverName'],
+            driverId: extra?['driverId'],
+          );
+        },
+      ),
+      GoRoute(
+        path: Routes.scheduleRide,
+        builder: (context, state) => const ScheduleRideScreen(),
+      ),
+      GoRoute(
+        path: Routes.voiceCall,
+        builder: (context, state) {
+          final callerName = state.extra as String? ?? 'Driver';
+          return CallScreen(callerName: callerName);
+        },
+      ),
+      GoRoute(
+        path: Routes.rateDriver,
+        builder: (context, state) {
+          final rideId = state.pathParameters['rideId'] ?? '';
+          final extra = state.extra as Map<String, String>?;
+          return RatingScreen(
+            rideId: rideId,
+            driverId: extra?['driverId'] ?? '',
+            driverName: extra?['driverName'] ?? 'Driver',
+          );
+        },
+      ),
+      GoRoute(
+        path: Routes.referral,
+        builder: (context, state) => const ReferralScreen(),
+      ),
+      GoRoute(
+        path: Routes.corporateDashboard,
+        builder: (context, state) => const CorporateDashboardScreen(),
+      ),
+      GoRoute(
+        path: Routes.subscriptionPlans,
+        builder: (context, state) => const SubscriptionPlansScreen(),
+      ),
+      GoRoute(
+        path: Routes.lostFound,
+        builder: (context, state) => const LostFoundScreen(),
+      ),
+
+      // === Profile Feature Placeholder Routes ===
+      GoRoute(path: Routes.profileEarnDriving, builder: (context, state) => const EarnDrivingScreen()),
+      GoRoute(path: Routes.profileCo2Saved, builder: (context, state) => const CO2SavedScreen()),
+      GoRoute(path: Routes.profileSendGift, builder: (context, state) => const SendGiftScreen()),
+      GoRoute(path: Routes.profileSafetyCheckup, builder: (context, state) => const SafetyCheckupScreen()),
+      GoRoute(path: Routes.profileInsurance, builder: (context, state) => const SereneInsuranceScreen()),
+      GoRoute(path: Routes.profileFamily, builder: (context, state) => const FamilyScreen()),
+      GoRoute(path: Routes.profileTeens, builder: (context, state) => const TeensScreen()),
+      GoRoute(path: Routes.profileBusinessSetup, builder: (context, state) => const BusinessProfileSetupScreen()),
+      GoRoute(path: Routes.profileManageAccount, builder: (context, state) => const ManageAccountScreen()),
+      GoRoute(path: Routes.profileSavedGroup, builder: (context, state) => const SavedGroupScreen()),
+      GoRoute(path: Routes.profileSettings, builder: (context, state) => const SettingsScreen()),
+      GoRoute(path: Routes.profileSimpleMode, builder: (context, state) => const SimpleModeScreen()),
+      GoRoute(path: Routes.profileLegal, builder: (context, state) => const LegalScreen()),
+
+      // === Service Feature Placeholder Routes ===
+      GoRoute(path: Routes.serviceIntercity, builder: (context, state) => const IntercityScreen()),
+      GoRoute(path: Routes.serviceRentals, builder: (context, state) => const RentalsScreen()),
+      GoRoute(path: Routes.serviceBusTickets, builder: (context, state) => const BusTicketsScreen()),
+      GoRoute(path: Routes.serviceSeniors, builder: (context, state) => const SeniorsScreen()),
+      GoRoute(path: Routes.serviceSeeAll, builder: (context, state) => const SeeAllServicesScreen()),
 
       // Driver Routes
       ShellRoute(
@@ -263,11 +377,6 @@ class PassengerShell extends StatelessWidget {
             selectedIcon: Icon(Icons.person),
             label: 'Account',
           ),
-          NavigationDestination(
-            icon: Icon(Icons.auto_awesome_outlined),
-            selectedIcon: Icon(Icons.auto_awesome),
-            label: 'For You',
-          ),
         ],
       ),
     );
@@ -280,7 +389,6 @@ class PassengerShell extends StatelessWidget {
         location.startsWith(Routes.tripHistory)) return 2;
     if (location.startsWith(Routes.passengerAccountTab) ||
         location.startsWith(Routes.passengerProfile)) return 3;
-    if (location.startsWith(Routes.passengerForYouTab)) return 4;
     return 0;
   }
 
@@ -297,9 +405,6 @@ class PassengerShell extends StatelessWidget {
         break;
       case 3:
         context.go(Routes.passengerAccountTab);
-        break;
-      case 4:
-        context.go(Routes.passengerForYouTab);
         break;
     }
   }

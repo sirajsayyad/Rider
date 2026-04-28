@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
+import 'package:dio/dio.dart';
 import '../config/app_config.dart';
 
 /// Location data model
@@ -114,22 +115,64 @@ class LocationService {
         final place = placemarks.first;
         final formattedAddress = _formatPlacemarkAddress(place);
         
+        if (formattedAddress != null && formattedAddress.isNotEmpty) {
+          return LocationData(
+            latitude: lat,
+            longitude: lng,
+            address: formattedAddress,
+            city: place.locality,
+            state: place.administrativeArea,
+            country: place.country,
+            postalCode: place.postalCode,
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint('Native reverse geocoding failed: $e');
+    }
+
+    // Fallback to nominatim
+    try {
+      final dio = Dio();
+      final response = await dio.get(
+        'https://nominatim.openstreetmap.org/reverse',
+        queryParameters: {
+          'lat': lat.toString(),
+          'lon': lng.toString(),
+          'format': 'json',
+          'addressdetails': '1',
+        },
+        options: Options(headers: {
+          if (!kIsWeb) 'User-Agent': 'RideConnect/1.0',
+          'Accept': 'application/json',
+        }),
+      );
+
+      if (response.statusCode == 200 && response.data != null) {
+        final data = response.data;
+        final addressObj = data['address'] ?? {};
+        
+        String displayName = data['display_name'] ?? '';
+        final parts = displayName.split(',').map((e) => e.trim()).toList();
+        parts.removeWhere((part) => RegExp(r'^[A-Z0-9]{2,8}\+[A-Z0-9]{2,8}$', caseSensitive: false).hasMatch(part));
+        String cleanAddress = parts.join(', ');
+        if (cleanAddress.isEmpty) cleanAddress = 'Current Location';
+
         return LocationData(
           latitude: lat,
           longitude: lng,
-          address: formattedAddress,
-          city: place.locality,
-          state: place.administrativeArea,
-          country: place.country,
-          postalCode: place.postalCode,
+          address: cleanAddress,
+          city: addressObj['city'] ?? addressObj['town'] ?? addressObj['village'],
+          state: addressObj['state'],
+          country: addressObj['country'],
+          postalCode: addressObj['postcode'],
         );
       }
-      
-      return LocationData(latitude: lat, longitude: lng);
     } catch (e) {
-      debugPrint('Error in reverse geocoding: $e');
-      return LocationData(latitude: lat, longitude: lng);
+      debugPrint('Nominatim fallback failed: $e');
     }
+
+    return LocationData(latitude: lat, longitude: lng, address: 'Current Location');
   }
   
   /// Forward geocode - get coordinates from address
@@ -155,12 +198,54 @@ class LocationService {
           postalCode: resolved.postalCode,
         );
       }
-      
-      return null;
     } catch (e) {
-      debugPrint('Error in forward geocoding: $e');
-      return null;
+      debugPrint('Native forward geocoding failed: $e');
     }
+
+    // Fallback to nominatim
+    try {
+      final dio = Dio();
+      final response = await dio.get(
+        'https://nominatim.openstreetmap.org/search',
+        queryParameters: {
+          'q': address.trim(),
+          'format': 'json',
+          'limit': '1',
+          'addressdetails': '1',
+        },
+        options: Options(headers: {
+          if (!kIsWeb) 'User-Agent': 'RideConnect/1.0',
+          'Accept': 'application/json',
+        }),
+      );
+
+      if (response.statusCode == 200 && (response.data as List).isNotEmpty) {
+        final result = response.data[0];
+        final lat = double.parse(result['lat']);
+        final lon = double.parse(result['lon']);
+        final addressObj = result['address'] ?? {};
+        
+        String displayName = result['display_name'] ?? address;
+        final parts = displayName.split(',').map((e) => e.trim()).toList();
+        parts.removeWhere((part) => RegExp(r'^[A-Z0-9]{2,8}\+[A-Z0-9]{2,8}$', caseSensitive: false).hasMatch(part));
+        String cleanAddress = parts.join(', ');
+        if (cleanAddress.isEmpty) cleanAddress = address;
+
+        return LocationData(
+          latitude: lat,
+          longitude: lon,
+          address: cleanAddress,
+          city: addressObj['city'] ?? addressObj['town'] ?? addressObj['village'],
+          state: addressObj['state'],
+          country: addressObj['country'],
+          postalCode: addressObj['postcode'],
+        );
+      }
+    } catch (e) {
+      debugPrint('Nominatim forward geocoding failed: $e');
+    }
+
+    return null;
   }
 
   String? _formatPlacemarkAddress(Placemark place) {

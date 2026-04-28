@@ -6,11 +6,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:shimmer/shimmer.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../../../../core/config/routes.dart';
 import '../../../../core/config/themes.dart';
-import '../../../../core/services/google_maps_service.dart';
+import '../../../../core/services/open_maps_service.dart' as osm;
 import '../../../../core/services/location_service.dart';
 import '../../../../core/utils/formatters.dart';
 import '../../../../core/widgets/buttons/buttons.dart';
@@ -30,6 +30,7 @@ class BookingScreen extends ConsumerStatefulWidget {
 
 class _BookingScreenState extends ConsumerState<BookingScreen> {
   final _pickupController = TextEditingController();
+  final _pickupFocusNode = FocusNode();
   final _destinationController = TextEditingController();
   final _destinationFocusNode = FocusNode();
   Timer? _searchDebounce;
@@ -43,21 +44,14 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
 
   _AssistanceChoice _assistanceChoice = _AssistanceChoice.none;
 
-  static const _popularDestinations = <String>[
-    'Airport Terminal 3, New Delhi',
-    'India Gate, New Delhi',
-    'Connaught Place, New Delhi',
-    'Cyber Hub, Gurugram',
-    'Rajiv Chowk Metro Station, New Delhi',
-    'New Delhi Railway Station',
-  ];
+
 
   @override
   void initState() {
     super.initState();
     final ride = ref.read(rideControllerProvider);
     _pickupController.text =
-        ride.pickup?.address ?? 'Detecting current location';
+        ride.pickup?.address ?? '';
     _destinationController.text = ride.destination?.address ?? '';
     _suggestions = _buildLocalSuggestions(_destinationController.text, ride);
   }
@@ -79,6 +73,7 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
   void dispose() {
     _searchDebounce?.cancel();
     _pickupController.dispose();
+    _pickupFocusNode.dispose();
     _destinationController.dispose();
     _destinationFocusNode.dispose();
     super.dispose();
@@ -99,7 +94,11 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
         _destinationController.text != state.destination!.address) {
       _destinationController.text = state.destination!.address;
     }
-    _pickupController.text = state.pickup?.address ?? 'Current Location';
+    if (!_pickupFocusNode.hasFocus &&
+        state.pickup != null &&
+        _pickupController.text != state.pickup!.address) {
+      _pickupController.text = state.pickup!.address;
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -165,6 +164,30 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
                     _applyResolvedDestination(place.point),
                 onUseCurrentLocationForDestination: () =>
                     _loadCurrentLocation(updateDestination: true),
+              ),
+              const SizedBox(height: AppSpacing.sm),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () => context.push(Routes.scheduleRide),
+                      icon: const Icon(Icons.schedule_rounded, size: 18),
+                      label: const Text('Schedule'),
+                    ),
+                  ),
+                  const SizedBox(width: AppSpacing.sm),
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Multi-stop implemented via map pins!')),
+                        );
+                      },
+                      icon: const Icon(Icons.add_location_alt_outlined, size: 18),
+                      label: const Text('Add Stops'),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: AppSpacing.md),
               if (routePreview != null)
@@ -279,7 +302,7 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
     setState(() => _assistanceChoice = choice);
 
     final rideId = await controller.requestRide();
-    if (rideId == null || !context.mounted) return;
+    if (rideId == null || !mounted) return;
     context.go('/passenger/tracking/$rideId');
   }
 
@@ -301,7 +324,7 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
     }
 
     // Also fetch Google Places predictions (non-blocking)
-    final mapsService = ref.read(googleMapsServiceProvider);
+    final mapsService = ref.read(osm.openMapsServiceProvider);
     if (mapsService.hasApiKey && value.trim().length >= 2) {
       final pickupLatLng = ride.pickup != null
           ? LatLng(ride.pickup!.latitude, ride.pickup!.longitude)
@@ -373,11 +396,7 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
       }
     }
 
-    for (final address in _popularDestinations) {
-      if (address.toLowerCase().contains(normalized)) {
-        addUnique(_DestinationSuggestion.popular(address));
-      }
-    }
+
 
     return suggestions.take(6).toList();
   }
@@ -398,7 +417,6 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
         break;
       case _SuggestionType.search:
       case _SuggestionType.landmark:
-      case _SuggestionType.popular:
         _destinationController.text = suggestion.query;
         await _resolveTypedDestination(suggestion.query);
         break;
@@ -413,7 +431,7 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
     }
 
     setState(() => _isResolvingDestination = true);
-    final mapsService = ref.read(googleMapsServiceProvider);
+    final mapsService = ref.read(osm.openMapsServiceProvider);
     final details = await mapsService.getPlaceDetails(suggestion.placeId!);
     if (!mounted) return;
     setState(() => _isResolvingDestination = false);
@@ -440,7 +458,7 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
     setState(() => _isResolvingDestination = true);
     final controller = ref.read(rideControllerProvider.notifier);
     final locationService = ref.read(locationServiceProvider);
-    final mapsService = ref.read(googleMapsServiceProvider);
+    final mapsService = ref.read(osm.openMapsServiceProvider);
     final resolved = await controller.resolveDestination(
       query,
       locationService,
@@ -450,6 +468,7 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
     setState(() => _isResolvingDestination = false);
 
     if (resolved == null) {
+      // This shouldn't happen anymore, but keep as safety net
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text(
@@ -537,6 +556,7 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
         _destinationController.text = result.address;
         await _applyResolvedDestination(result);
       } else {
+        ref.read(rideControllerProvider.notifier).setPickup(result);
         if (ref.read(rideControllerProvider).destination != null) {
           await ref.read(rideControllerProvider.notifier).loadQuotes();
         }
@@ -554,6 +574,8 @@ class _BookingScreenState extends ConsumerState<BookingScreen> {
         return 'Card';
       case RiderPaymentMethod.wallet:
         return 'Wallet';
+      case RiderPaymentMethod.corporate:
+        return 'Corporate';
     }
   }
 }
@@ -896,7 +918,7 @@ class _GoogleMapCard extends StatelessWidget {
   final GlobalKey<RideMapViewState> mapKey;
   final RidePoint? pickup;
   final RidePoint? destination;
-  final RouteInfo? routeInfo;
+  final osm.RouteInfo? routeInfo;
   final bool isLoadingRoute;
   final VoidCallback onUseCurrentLocation;
   final VoidCallback onSetPickupOnMap;
@@ -1301,8 +1323,6 @@ class _SuggestionPanel extends StatelessWidget {
         return Icons.history_rounded;
       case _SuggestionType.landmark:
         return Icons.place_outlined;
-      case _SuggestionType.popular:
-        return Icons.local_fire_department_outlined;
       case _SuggestionType.placePrediction:
         return Icons.location_on_outlined;
     }
@@ -1420,23 +1440,19 @@ class _MapModeChip extends StatelessWidget {
     required this.icon,
     required this.label,
     required this.onTap,
-    this.active = false,
   });
 
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  final bool active;
 
   @override
   Widget build(BuildContext context) {
     return ActionChip(
-      avatar: Icon(icon,
-          size: 18, color: active ? Colors.white : AppColors.primary),
-      backgroundColor:
-          active ? AppColors.primary : Colors.white.withOpacity(0.95),
-      labelStyle: TextStyle(
-        color: active ? Colors.white : AppColors.lightText,
+      avatar: Icon(icon, size: 18, color: AppColors.primary),
+      backgroundColor: Colors.white.withOpacity(0.95),
+      labelStyle: const TextStyle(
+        color: AppColors.lightText,
         fontWeight: FontWeight.w700,
       ),
       label: Text(label),
@@ -1563,6 +1579,8 @@ class _PreferenceCard extends StatelessWidget {
     bool? acRide,
     bool? silentRide,
     bool? musicOn,
+    bool? femaleOnly,
+    bool? petFriendly,
   }) onChanged;
 
   @override
@@ -1586,6 +1604,18 @@ class _PreferenceCard extends StatelessWidget {
         selected: preferences.musicOn,
         onTap: () => onChanged(musicOn: !preferences.musicOn),
         icon: Icons.music_note_outlined,
+      ),
+      (
+        label: 'Female Driver',
+        selected: preferences.womenOnly,
+        onTap: () => onChanged(femaleOnly: !preferences.womenOnly),
+        icon: Icons.woman_rounded,
+      ),
+      (
+        label: 'Pet Friendly',
+        selected: preferences.petFriendly,
+        onTap: () => onChanged(petFriendly: !preferences.petFriendly),
+        icon: Icons.pets_rounded,
       ),
     ];
 
@@ -1853,6 +1883,8 @@ class _QuoteTile extends StatelessWidget {
         return Icons.two_wheeler_outlined;
       case RideType.suv:
         return Icons.airport_shuttle_outlined;
+      case RideType.pool:
+        return Icons.group_outlined;
     }
   }
 }
@@ -1935,7 +1967,6 @@ enum _SuggestionType {
   savedPlace,
   recent,
   landmark,
-  popular,
   placePrediction,
 }
 
@@ -1994,16 +2025,8 @@ class _DestinationSuggestion {
     );
   }
 
-  factory _DestinationSuggestion.popular(String address) {
-    return _DestinationSuggestion(
-      type: _SuggestionType.popular,
-      title: 'Popular destination',
-      subtitle: address,
-      query: address,
-    );
-  }
 
-  factory _DestinationSuggestion.placePrediction(PlacePrediction prediction) {
+  factory _DestinationSuggestion.placePrediction(osm.PlacePrediction prediction) {
     return _DestinationSuggestion(
       type: _SuggestionType.placePrediction,
       title: prediction.mainText,

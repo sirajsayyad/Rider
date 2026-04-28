@@ -1,9 +1,9 @@
 import 'dart:async';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../../../../core/config/app_config.dart';
 import '../../../../core/config/themes.dart';
@@ -14,6 +14,7 @@ import '../../ride/domain/ride_models.dart';
 
 /// A fullscreen map screen that lets the user drag the map to position
 /// a center-pinned marker for pickup or drop-off selection.
+/// Uses OpenStreetMap — no API key required!
 class LocationPickerScreen extends ConsumerStatefulWidget {
   const LocationPickerScreen({
     super.key,
@@ -33,7 +34,7 @@ class LocationPickerScreen extends ConsumerStatefulWidget {
 }
 
 class _LocationPickerScreenState extends ConsumerState<LocationPickerScreen> {
-  GoogleMapController? _mapController;
+  late final MapController _mapController;
   LatLng _centerPosition = const LatLng(
     AppConfig.defaultLatitude,
     AppConfig.defaultLongitude,
@@ -41,12 +42,12 @@ class _LocationPickerScreenState extends ConsumerState<LocationPickerScreen> {
   String _resolvedAddress = 'Move the map to set location';
   bool _isResolving = false;
   bool _isMoving = false;
-  bool _mapLoadFailed = false;
   Timer? _debounce;
 
   @override
   void initState() {
     super.initState();
+    _mapController = MapController();
     if (widget.initialPosition != null) {
       _centerPosition = widget.initialPosition!;
     }
@@ -58,24 +59,25 @@ class _LocationPickerScreenState extends ConsumerState<LocationPickerScreen> {
   @override
   void dispose() {
     _debounce?.cancel();
-    _mapController?.dispose();
+    _mapController.dispose();
     super.dispose();
   }
 
-  void _onCameraMove(CameraPosition position) {
-    _centerPosition = position.target;
-    if (!_isMoving) {
-      setState(() => _isMoving = true);
+  void _onMapEvent(MapEvent event) {
+    if (event is MapEventMove) {
+      _centerPosition = event.camera.center;
+      if (!_isMoving) {
+        setState(() => _isMoving = true);
+      }
+      _debounce?.cancel();
+    } else if (event is MapEventMoveEnd) {
+      _centerPosition = event.camera.center;
+      setState(() => _isMoving = false);
+      _debounce?.cancel();
+      _debounce = Timer(const Duration(milliseconds: 400), () {
+        _resolveAddress(_centerPosition);
+      });
     }
-    _debounce?.cancel();
-  }
-
-  void _onCameraIdle() {
-    setState(() => _isMoving = false);
-    _debounce?.cancel();
-    _debounce = Timer(const Duration(milliseconds: 400), () {
-      _resolveAddress(_centerPosition);
-    });
   }
 
   Future<void> _resolveAddress(LatLng position) async {
@@ -108,11 +110,7 @@ class _LocationPickerScreenState extends ConsumerState<LocationPickerScreen> {
     if (current != null && mounted) {
       final pos = LatLng(current.latitude, current.longitude);
       _centerPosition = pos;
-      _mapController?.animateCamera(
-        CameraUpdate.newCameraPosition(
-          CameraPosition(target: pos, zoom: AppConfig.defaultMapZoom),
-        ),
-      );
+      _mapController.move(pos, AppConfig.defaultMapZoom);
     }
   }
 
@@ -134,38 +132,6 @@ class _LocationPickerScreenState extends ConsumerState<LocationPickerScreen> {
     Navigator.of(context).pop(point);
   }
 
-  Widget _buildMap(bool isDark) {
-    if (_mapLoadFailed) {
-      return _FallbackPickerMap(isDark: isDark);
-    }
-
-    try {
-      return GoogleMap(
-        initialCameraPosition: CameraPosition(
-          target: _centerPosition,
-          zoom: AppConfig.defaultMapZoom,
-        ),
-        onMapCreated: (controller) {
-          _mapController = controller;
-          if (isDark) _setDarkStyle(controller);
-        },
-        onCameraMove: _onCameraMove,
-        onCameraIdle: _onCameraIdle,
-        myLocationEnabled: !kIsWeb,
-        myLocationButtonEnabled: false,
-        zoomControlsEnabled: false,
-        mapToolbarEnabled: false,
-        compassEnabled: false,
-      );
-    } catch (e) {
-      debugPrint('GoogleMap failed to render: $e');
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() => _mapLoadFailed = true);
-      });
-      return _FallbackPickerMap(isDark: isDark);
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -175,8 +141,25 @@ class _LocationPickerScreenState extends ConsumerState<LocationPickerScreen> {
     return Scaffold(
       body: Stack(
         children: [
-          // Map (real or fallback)
-          _buildMap(isDark),
+          // OpenStreetMap — always works, no API key
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: _centerPosition,
+              initialZoom: AppConfig.defaultMapZoom,
+              onMapEvent: _onMapEvent,
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: isDark
+                    ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+                    : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                subdomains: isDark ? const ['a', 'b', 'c', 'd'] : const [],
+                userAgentPackageName: 'com.rideconnect.app',
+                maxZoom: 19,
+              ),
+            ],
+          ),
 
           // Center pin
           Center(
@@ -277,6 +260,26 @@ class _LocationPickerScreenState extends ConsumerState<LocationPickerScreen> {
                       ),
                     ],
                   ),
+                ),
+              ),
+            ),
+          ),
+
+          // OSM Attribution
+          Positioned(
+            left: 8,
+            bottom: 180,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+              decoration: BoxDecoration(
+                color: (isDark ? Colors.black : Colors.white).withOpacity(0.7),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                '© OpenStreetMap',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: isDark ? Colors.white60 : Colors.black54,
                 ),
               ),
             ),
@@ -401,91 +404,4 @@ class _LocationPickerScreenState extends ConsumerState<LocationPickerScreen> {
       ),
     );
   }
-
-  Future<void> _setDarkStyle(GoogleMapController controller) async {
-    const style = '''[
-      {"elementType": "geometry", "stylers": [{"color": "#242f3e"}]},
-      {"elementType": "labels.text.fill", "stylers": [{"color": "#746855"}]},
-      {"elementType": "labels.text.stroke", "stylers": [{"color": "#242f3e"}]},
-      {"featureType": "road", "elementType": "geometry", "stylers": [{"color": "#38414e"}]},
-      {"featureType": "road.highway", "elementType": "geometry", "stylers": [{"color": "#746855"}]},
-      {"featureType": "water", "elementType": "geometry", "stylers": [{"color": "#17263c"}]}
-    ]''';
-    // ignore: deprecated_member_use
-    controller.setMapStyle(style);
-  }
-}
-
-/// Fallback map for the location picker when Google Maps JS API is unavailable.
-class _FallbackPickerMap extends StatelessWidget {
-  const _FallbackPickerMap({required this.isDark});
-
-  final bool isDark;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: isDark
-              ? const [Color(0xFF0B2232), Color(0xFF123549), Color(0xFF1A4A5E)]
-              : const [Color(0xFFDDF2EB), Color(0xFFD9ECFF), Color(0xFFE8F4FD)],
-        ),
-      ),
-      child: CustomPaint(
-        painter: _PickerGridPainter(isDark: isDark),
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.only(bottom: 200),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: (isDark ? Colors.black : Colors.white).withOpacity(0.85),
-                borderRadius: BorderRadius.circular(AppRadius.md),
-                boxShadow: AppShadows.small,
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.info_outline_rounded, size: 16, color: AppColors.primary),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Add a Google Maps API key for interactive maps.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: isDark ? AppColors.darkTextSecondary : AppColors.lightTextSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PickerGridPainter extends CustomPainter {
-  const _PickerGridPainter({required this.isDark});
-  final bool isDark;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = (isDark ? Colors.white : Colors.black).withOpacity(0.06)
-      ..strokeWidth = 1;
-    for (double x = 0; x < size.width; x += 30) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-    for (double y = 0; y < size.height; y += 30) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _PickerGridPainter old) => old.isDark != isDark;
 }

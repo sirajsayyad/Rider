@@ -11,6 +11,7 @@ import '../../../../shared/providers/app_providers.dart';
 import '../../ride/application/ride_controller.dart';
 import '../../ride/domain/ride_models.dart';
 import '../widgets/live_tracking_map.dart';
+import '../../pooling/widgets/pool_widgets.dart';
 
 class TrackingScreen extends ConsumerWidget {
   const TrackingScreen({super.key, required this.rideId});
@@ -158,6 +159,11 @@ class TrackingScreen extends ConsumerWidget {
                       ),
                     ],
                     const SizedBox(height: AppSpacing.md),
+                    
+                    if (trip.rideType == RideType.pool) ...[
+                      const PoolSummaryCard(),
+                      const SizedBox(height: AppSpacing.md),
+                    ],
 
                     // Enhanced driver card
                     _DriverCard(trip: trip, isDark: isDark),
@@ -185,13 +191,7 @@ class TrackingScreen extends ConsumerWidget {
                             label: 'Call',
                             color: AppColors.success,
                             onTap: () {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Calling ${trip.driver?.maskedPhone ?? 'masked number'}',
-                                  ),
-                                ),
-                              );
+                              context.push(Routes.voiceCall);
                             },
                           ),
                           const SizedBox(width: AppSpacing.sm),
@@ -291,22 +291,8 @@ class TrackingScreen extends ConsumerWidget {
                       // Rating prompt for completed ride
                       _RatingPromptCard(
                         driverName: trip.driver?.name ?? 'Driver',
-                        onRate: () async {
-                          final rating = await showRatingDialog(
-                            context,
-                            title: 'Rate your ride',
-                            subtitle:
-                                'How was your experience with ${trip.driver?.name ?? 'the driver'}?',
-                          );
-                          if (rating != null && context.mounted) {
-                            await showSuccessDialog(
-                              context,
-                              title: 'Thank you!',
-                              message:
-                                  'You rated $rating stars. Your feedback helps improve ride quality.',
-                              onDone: () {},
-                            );
-                          }
+                        onRate: () {
+                          context.push(Routes.rateDriver.replaceFirst(':rideId', trip.id));
                         },
                       ),
                       const SizedBox(height: AppSpacing.md),
@@ -621,6 +607,8 @@ class _DriverCard extends StatelessWidget {
         return Icons.airport_shuttle_rounded;
       case RideType.economy:
         return Icons.local_taxi_rounded;
+      case RideType.pool:
+        return Icons.group_rounded;
     }
   }
 }

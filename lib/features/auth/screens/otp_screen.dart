@@ -86,9 +86,10 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
       _otpController.text,
     );
 
+    if (!mounted) return;
     setState(() => _isLoading = false);
 
-    if (success && mounted) {
+    if (success) {
       // Check if user needs to select role
       final user = ref.read(currentUserProvider);
       if (user?.role == 'driver') {
@@ -98,7 +99,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
       } else {
         context.go(Routes.passengerHome);
       }
-    } else if (mounted) {
+    } else {
       _otpController.clear();
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -118,30 +119,29 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
       widget.contact,
     );
 
+    if (!mounted) return;
     setState(() => _isLoading = false);
 
     if (success) {
       _startResendTimer();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('OTP sent successfully!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('OTP sent successfully!'),
+          backgroundColor: Colors.green,
+        ),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     final isOtpComplete = _otpController.text.length == 6;
 
     return Scaffold(
       extendBodyBehindAppBar: true,
       backgroundColor: Colors.transparent,
+      resizeToAvoidBottomInset: true,
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
@@ -173,12 +173,16 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
             ),
           ),
           SafeArea(
-            child: Padding(
+            child: SingleChildScrollView(
               padding: const EdgeInsets.all(AppSpacing.lg),
+              keyboardDismissBehavior:
+                  ScrollViewKeyboardDismissBehavior.onDrag,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const SizedBox(height: AppSpacing.md),
+
+                  // Header card
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(AppSpacing.lg),
@@ -268,6 +272,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
 
                   const SizedBox(height: AppSpacing.xxl),
 
+                  // PIN input
                   AnimatedContainer(
                     duration: const Duration(milliseconds: 400),
                     curve: Curves.easeOut,
@@ -326,6 +331,7 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
 
                   const SizedBox(height: AppSpacing.lg),
 
+                  // Resend timer
                   Center(
                     child: _ResendCountdownBadge(
                       canResend: _canResend,
@@ -335,16 +341,19 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
                     ),
                   ),
 
-                  const Spacer(),
+                  const SizedBox(height: AppSpacing.xxl),
 
+                  // Verify button
                   PrimaryButton(
                     text: 'Verify',
-                    onPressed: isOtpComplete && !_isLoading ? _verifyOtp : null,
+                    onPressed:
+                        isOtpComplete && !_isLoading ? _verifyOtp : null,
                     isLoading: _isLoading,
                   ),
 
                   const SizedBox(height: AppSpacing.lg),
 
+                  // Demo OTP hint
                   Container(
                     padding: const EdgeInsets.all(AppSpacing.md),
                     decoration: BoxDecoration(
@@ -374,6 +383,8 @@ class _OtpScreenState extends ConsumerState<OtpScreen>
                       ],
                     ),
                   ),
+
+                  const SizedBox(height: AppSpacing.lg),
                 ],
               ),
             ),
@@ -509,8 +520,7 @@ class _ResendCountdownBadge extends StatelessWidget {
                   children: [
                     ShaderMask(
                       shaderCallback: (rect) {
-                        return AppColors.primaryGradient
-                            .createShader(rect);
+                        return AppColors.primaryGradient.createShader(rect);
                       },
                       child: CircularProgressIndicator(
                         value: progress.clamp(0.0, 1.0),
@@ -580,5 +590,21 @@ class _InstantBadge extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Animated Builder helper
+class AnimatedBuilder extends AnimatedWidget {
+  final Widget Function(BuildContext, Widget?) builder;
+
+  const AnimatedBuilder({
+    super.key,
+    required Animation<double> animation,
+    required this.builder,
+  }) : super(listenable: animation);
+
+  @override
+  Widget build(BuildContext context) {
+    return builder(context, null);
   }
 }

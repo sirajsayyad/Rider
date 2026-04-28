@@ -3,7 +3,7 @@ library;
 
 class AppConfig {
   // App Info
-  static const String appName = 'RideConnect';
+  static const String appName = 'Serene';
   static const String appVersion = '1.0.0';
   static const String appBuildNumber = '1';
   

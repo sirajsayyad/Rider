@@ -355,7 +355,7 @@ class AdminDashboardScreen extends ConsumerWidget {
                 ),
                 SizedBox(height: 12),
                 Text(
-                  'RideConnect Admin',
+                  'Serene Admin',
                   style: TextStyle(
                     color: Colors.white,
                     fontSize: 18,
@@ -363,7 +363,7 @@ class AdminDashboardScreen extends ConsumerWidget {
                   ),
                 ),
                 Text(
-                  'admin@rideconnect.com',
+                  'admin@serene.com',
                   style: TextStyle(
                     color: Colors.white70,
                     fontSize: 12,

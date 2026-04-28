@@ -62,6 +62,23 @@ class _HomePromoOffer {
   });
 }
 
+class _ExtraFeatureItem {
+  final String id;
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final String route;
+
+  const _ExtraFeatureItem({
+    required this.id,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.route,
+  });
+}
+
+
 final homeServicesProvider = StateNotifierProvider.autoDispose<
     _HomeServicesNotifier, List<_HomeServiceItem>>((ref) {
   final notifier = _HomeServicesNotifier();
@@ -211,6 +228,32 @@ class _HomePromoNotifier extends StateNotifier<_HomePromoOffer> {
   }
 }
 
+final homeFeaturesProvider = Provider<List<_ExtraFeatureItem>>((ref) {
+  return const [
+    _ExtraFeatureItem(
+      id: 'elevate',
+      title: 'Elevate your ride',
+      subtitle: 'Premium rides for special occasions',
+      icon: Icons.star_rounded,
+      route: Routes.booking,
+    ),
+    _ExtraFeatureItem(
+      id: 'book_someone_else',
+      title: 'Book for someone else',
+      subtitle: 'Easily book rides for your friends or family',
+      icon: Icons.person_add_rounded,
+      route: Routes.booking,
+    ),
+    _ExtraFeatureItem(
+      id: 'reserve',
+      title: 'Reserve ahead',
+      subtitle: 'Schedule a ride up to 30 days in advance',
+      icon: Icons.calendar_month_rounded,
+      route: Routes.scheduleRide,
+    ),
+  ];
+});
+
 class PassengerHomeScreen extends ConsumerStatefulWidget {
   const PassengerHomeScreen({super.key});
 
@@ -357,6 +400,114 @@ class _ServiceTile extends StatelessWidget {
                 ),
               ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _DynamicFeaturesSection extends ConsumerWidget {
+  const _DynamicFeaturesSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final features = ref.watch(homeFeaturesProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'More ways to ride',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+        ),
+        const SizedBox(height: AppSpacing.sm),
+        ...features.map(
+          (feature) => Padding(
+            padding: const EdgeInsets.only(bottom: AppSpacing.sm),
+            child: _DynamicFeatureCard(feature: feature),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DynamicFeatureCard extends StatelessWidget {
+  const _DynamicFeatureCard({required this.feature});
+  final _ExtraFeatureItem feature;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark ? AppColors.darkCard : AppColors.lightCard,
+        borderRadius: BorderRadius.circular(AppRadius.lg),
+        border: Border.all(
+          color: (isDark ? Colors.white : Colors.black).withOpacity(0.06),
+        ),
+      ),
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(AppRadius.lg),
+          onTap: () => context.push(feature.route),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(
+              horizontal: AppSpacing.md,
+              vertical: AppSpacing.md,
+            ),
+            child: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withOpacity(0.10),
+                    borderRadius: BorderRadius.circular(AppRadius.md),
+                  ),
+                  child: Icon(feature.icon, color: AppColors.primary, size: 22),
+                ),
+                const SizedBox(width: AppSpacing.md),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        feature.title,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.bold,
+                            ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        feature.subtitle,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: isDark
+                                  ? AppColors.darkTextSecondary
+                                  : AppColors.lightTextSecondary,
+                            ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: AppSpacing.sm),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: isDark
+                      ? AppColors.darkTextSecondary
+                      : AppColors.lightTextSecondary,
+                  size: 20,
+                ),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -593,62 +744,9 @@ class _PassengerHomeScreenState extends ConsumerState<PassengerHomeScreen> {
                         },
                       ),
                       const SizedBox(height: AppSpacing.md),
+                      const _DynamicFeaturesSection(),
+                      const SizedBox(height: AppSpacing.md),
                       _PromoBannerCard(promo: promo),
-                      const SizedBox(height: AppSpacing.md),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: _MetricCard(
-                              title: 'Wallet',
-                              value: Formatters.currency(ride.walletBalance),
-                              icon: Icons.account_balance_wallet_outlined,
-                            ),
-                          ),
-                          const SizedBox(width: AppSpacing.sm),
-                          Expanded(
-                            child: _MetricCard(
-                              title: 'Rewards',
-                              value: '${ride.rewardPoints} pts',
-                              icon: Icons.stars_outlined,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: AppSpacing.md),
-                      PrimaryButton(
-                        text: ride.activeTrip == null
-                            ? 'Book A Ride'
-                            : 'Track Active Ride',
-                        icon: Icons.local_taxi_rounded,
-                        onPressed: () {
-                          if (ride.activeTrip == null) {
-                            context.push(Routes.booking);
-                          } else {
-                            context.push(
-                                '/passenger/tracking/${ride.activeTrip!.id}');
-                          }
-                        },
-                      ),
-                      const SizedBox(height: AppSpacing.sm),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: SecondaryButton(
-                              text: 'Rewards',
-                              icon: Icons.stars_rounded,
-                              onPressed: () => context.push(Routes.rewards),
-                            ),
-                          ),
-                          const SizedBox(width: AppSpacing.sm),
-                          Expanded(
-                            child: SecondaryButton(
-                              text: 'Trips',
-                              icon: Icons.history_rounded,
-                              onPressed: () => context.push(Routes.tripHistory),
-                            ),
-                          ),
-                        ],
-                      ),
                     ],
                   ),
                 ),

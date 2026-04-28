@@ -3,21 +3,22 @@ import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:latlong2/latlong.dart';
 
 import '../../../../core/config/app_config.dart';
 import '../../../../core/config/themes.dart';
-import '../../../../core/services/google_maps_service.dart';
+import '../../../../core/services/open_maps_service.dart' as osm;
 import '../../../../core/services/location_service.dart';
 import '../../ride/domain/ride_models.dart';
 
-/// A live Google Map for the tracking screen that:
+/// A live OpenStreetMap for the tracking screen that:
 /// - Shows pickup and drop markers
 /// - Draws the route polyline
 /// - Animates a driver marker smoothly along the route
 /// - Continuously updates user's live location
-/// - Falls back to a styled preview on web when Maps JS API is missing
+/// - Works on ALL platforms — no API key required!
 class LiveTrackingMap extends ConsumerStatefulWidget {
   const LiveTrackingMap({super.key, required this.trip});
 
@@ -29,19 +30,19 @@ class LiveTrackingMap extends ConsumerStatefulWidget {
 
 class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
     with TickerProviderStateMixin {
-  GoogleMapController? _mapController;
-  RouteInfo? _routeInfo;
+  late final MapController _mapController;
+  osm.RouteInfo? _routeInfo;
   LatLng? _driverPosition;
   LatLng? _userPosition;
   Timer? _driverSimTimer;
   int _routeStepIndex = 0;
   AnimationController? _markerAnimController;
   bool _isRouteLoaded = false;
-  bool _mapLoadFailed = false;
 
   @override
   void initState() {
     super.initState();
+    _mapController = MapController();
     _driverPosition = LatLng(
       widget.trip.pickup.latitude,
       widget.trip.pickup.longitude,
@@ -57,7 +58,7 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
   }
 
   Future<void> _loadRouteAndStartSimulation() async {
-    final mapsService = ref.read(googleMapsServiceProvider);
+    final mapsService = ref.read(osm.openMapsServiceProvider);
     final origin = LatLng(
       widget.trip.pickup.latitude,
       widget.trip.pickup.longitude,
@@ -79,9 +80,17 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
       });
       // Fit camera to bounds
       Future.delayed(const Duration(milliseconds: 500), () {
-        _mapController?.animateCamera(
-          CameraUpdate.newLatLngBounds(route.bounds, 80),
-        );
+        try {
+          _mapController.fitCamera(
+            CameraFit.bounds(
+              bounds: LatLngBounds(
+                route.bounds.southwest,
+                route.bounds.northeast,
+              ),
+              padding: const EdgeInsets.all(80),
+            ),
+          );
+        } catch (_) {}
       });
       // Start simulating driver movement along the route
       _startDriverSimulation();
@@ -163,7 +172,7 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
   void dispose() {
     _driverSimTimer?.cancel();
     _markerAnimController?.dispose();
-    _mapController?.dispose();
+    _mapController.dispose();
     super.dispose();
   }
 
@@ -179,26 +188,9 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
       widget.trip.destination.longitude,
     );
 
-    if (kIsWeb) {
-      return _TrackingFallbackMap(
-        trip: widget.trip,
-        routeInfo: _routeInfo,
-        isDark: isDark,
-      );
-    }
-
-    // Show fallback when GoogleMap fails to load (e.g. missing API key on web)
-    if (_mapLoadFailed) {
-      return _TrackingFallbackMap(
-        trip: widget.trip,
-        routeInfo: _routeInfo,
-        isDark: isDark,
-      );
-    }
-
     return Stack(
       children: [
-        _buildGoogleMap(isDark, pickupLatLng, dropLatLng),
+        _buildMap(isDark, pickupLatLng, dropLatLng),
         // Route info overlay
         if (_isRouteLoaded && _routeInfo != null)
           Positioned(
@@ -227,9 +219,17 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
             child: InkWell(
               onTap: () {
                 if (_routeInfo != null) {
-                  _mapController?.animateCamera(
-                    CameraUpdate.newLatLngBounds(_routeInfo!.bounds, 80),
-                  );
+                  try {
+                    _mapController.fitCamera(
+                      CameraFit.bounds(
+                        bounds: LatLngBounds(
+                          _routeInfo!.bounds.southwest,
+                          _routeInfo!.bounds.northeast,
+                        ),
+                        padding: const EdgeInsets.all(80),
+                      ),
+                    );
+                  } catch (_) {}
                 }
               },
               customBorder: const CircleBorder(),
@@ -240,265 +240,171 @@ class _LiveTrackingMapState extends ConsumerState<LiveTrackingMap>
             ),
           ),
         ),
+        // OSM Attribution
+        Positioned(
+          left: 8,
+          bottom: 290,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+            decoration: BoxDecoration(
+              color: (isDark ? Colors.black : Colors.white).withOpacity(0.7),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              '© OpenStreetMap',
+              style: TextStyle(
+                fontSize: 10,
+                color: isDark ? Colors.white60 : Colors.black54,
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }
 
-  Widget _buildGoogleMap(bool isDark, LatLng pickupLatLng, LatLng dropLatLng) {
-    try {
-      return GoogleMap(
-        initialCameraPosition: CameraPosition(
-          target: pickupLatLng,
-          zoom: AppConfig.defaultMapZoom,
+  Widget _buildMap(bool isDark, LatLng pickupLatLng, LatLng dropLatLng) {
+    return FlutterMap(
+      mapController: _mapController,
+      options: MapOptions(
+        initialCenter: pickupLatLng,
+        initialZoom: AppConfig.defaultMapZoom,
+      ),
+      children: [
+        // OpenStreetMap tiles — free, no key needed
+        TileLayer(
+          urlTemplate: isDark
+              ? 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png'
+              : 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+          subdomains: isDark ? const ['a', 'b', 'c', 'd'] : const [],
+          userAgentPackageName: 'com.rideconnect.app',
+          maxZoom: 19,
         ),
-        markers: _buildMarkers(pickupLatLng, dropLatLng),
-        polylines: _buildPolylines(),
-        onMapCreated: (controller) {
-          _mapController = controller;
-          if (isDark) _setDarkStyle(controller);
-        },
-        myLocationEnabled: false,
-        myLocationButtonEnabled: false,
-        zoomControlsEnabled: false,
-        mapToolbarEnabled: false,
-        compassEnabled: false,
-        padding: const EdgeInsets.only(bottom: 280),
-      );
-    } catch (e) {
-      debugPrint('GoogleMap failed to render: $e');
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() => _mapLoadFailed = true);
-      });
-      return const SizedBox.shrink();
-    }
+        // Route polyline
+        if (_routeInfo != null && _routeInfo!.polylinePoints.isNotEmpty)
+          PolylineLayer(
+            polylines: [
+              Polyline(
+                points: _routeInfo!.polylinePoints,
+                strokeWidth: 9,
+                color: AppColors.primaryDark.withOpacity(0.2),
+              ),
+              Polyline(
+                points: _routeInfo!.polylinePoints,
+                strokeWidth: 5,
+                color: AppColors.primary,
+              ),
+            ],
+          ),
+        // Markers
+        MarkerLayer(
+          markers: _buildMarkers(pickupLatLng, dropLatLng),
+        ),
+      ],
+    );
   }
 
-  Set<Marker> _buildMarkers(LatLng pickup, LatLng drop) {
-    final markers = <Marker>{
+  List<Marker> _buildMarkers(LatLng pickup, LatLng drop) {
+    final markers = <Marker>[
+      // Pickup marker
       Marker(
-        markerId: const MarkerId('pickup'),
-        position: pickup,
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
-        infoWindow:
-            InfoWindow(title: 'Pickup', snippet: widget.trip.pickup.address),
+        point: pickup,
+        width: 44,
+        height: 44,
+        child: const _TrackingPin(
+          color: AppColors.pickupMarker,
+          icon: Icons.my_location_rounded,
+          label: 'P',
+        ),
       ),
+      // Drop marker
       Marker(
-        markerId: const MarkerId('drop'),
-        position: drop,
-        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
-        infoWindow:
-            InfoWindow(title: 'Drop', snippet: widget.trip.destination.address),
+        point: drop,
+        width: 44,
+        height: 44,
+        child: const _TrackingPin(
+          color: AppColors.dropMarker,
+          icon: Icons.location_on_rounded,
+          label: 'D',
+        ),
       ),
-    };
+    ];
 
+    // Driver marker
     if (_driverPosition != null) {
       markers.add(
         Marker(
-          markerId: const MarkerId('driver'),
-          position: _driverPosition!,
-          icon:
-              BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueViolet),
-          infoWindow: InfoWindow(
-            title: widget.trip.driver?.name ?? 'Driver',
-            snippet: widget.trip.driver?.vehicleNumber ?? '',
+          point: _driverPosition!,
+          width: 48,
+          height: 48,
+          child: _TrackingPin(
+            color: Colors.deepPurple,
+            icon: Icons.local_taxi_rounded,
+            label: widget.trip.driver?.name.substring(0, 1) ?? '🚗',
           ),
-          anchor: const Offset(0.5, 0.5),
-          zIndex: 3,
         ),
       );
     }
 
+    // User marker
     if (_userPosition != null) {
       markers.add(
         Marker(
-          markerId: const MarkerId('user'),
-          position: _userPosition!,
-          icon:
-              BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueAzure),
-          infoWindow: const InfoWindow(title: 'You'),
-          zIndex: 2,
+          point: _userPosition!,
+          width: 36,
+          height: 36,
+          child: Container(
+            decoration: BoxDecoration(
+              color: Colors.blue,
+              shape: BoxShape.circle,
+              border: Border.all(color: Colors.white, width: 3),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.blue.withOpacity(0.4),
+                  blurRadius: 8,
+                  spreadRadius: 2,
+                ),
+              ],
+            ),
+            child: const Icon(Icons.person, color: Colors.white, size: 16),
+          ),
         ),
       );
     }
 
     return markers;
   }
-
-  Set<Polyline> _buildPolylines() {
-    if (_routeInfo == null || _routeInfo!.polylinePoints.isEmpty) return {};
-
-    return {
-      Polyline(
-        polylineId: const PolylineId('route'),
-        points: _routeInfo!.polylinePoints,
-        color: AppColors.primary,
-        width: 5,
-        geodesic: true,
-        startCap: Cap.roundCap,
-        endCap: Cap.roundCap,
-      ),
-      Polyline(
-        polylineId: const PolylineId('route_shadow'),
-        points: _routeInfo!.polylinePoints,
-        color: AppColors.primaryDark.withOpacity(0.2),
-        width: 9,
-        geodesic: true,
-        startCap: Cap.roundCap,
-        endCap: Cap.roundCap,
-      ),
-    };
-  }
-
-  Future<void> _setDarkStyle(GoogleMapController controller) async {
-    const style = '''[
-      {"elementType": "geometry", "stylers": [{"color": "#242f3e"}]},
-      {"elementType": "labels.text.fill", "stylers": [{"color": "#746855"}]},
-      {"elementType": "labels.text.stroke", "stylers": [{"color": "#242f3e"}]},
-      {"featureType": "road", "elementType": "geometry", "stylers": [{"color": "#38414e"}]},
-      {"featureType": "road.highway", "elementType": "geometry", "stylers": [{"color": "#746855"}]},
-      {"featureType": "water", "elementType": "geometry", "stylers": [{"color": "#17263c"}]}
-    ]''';
-    // ignore: deprecated_member_use
-    controller.setMapStyle(style);
-  }
 }
 
-/// Fallback tracking map shown when Google Maps JS API is unavailable on web.
-class _TrackingFallbackMap extends StatelessWidget {
-  const _TrackingFallbackMap({
-    required this.trip,
-    required this.routeInfo,
-    required this.isDark,
+/// Custom map marker pin for the tracking screen.
+class _TrackingPin extends StatelessWidget {
+  const _TrackingPin({
+    required this.color,
+    required this.icon,
+    required this.label,
   });
 
-  final RideTrip trip;
-  final RouteInfo? routeInfo;
-  final bool isDark;
+  final Color color;
+  final IconData icon;
+  final String label;
 
   @override
   Widget build(BuildContext context) {
     return Container(
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: isDark
-              ? const [Color(0xFF0f2027), Color(0xFF203a43), Color(0xFF2c5364)]
-              : const [Color(0xFFE2F4FD), Color(0xFFE8F9ED)],
-        ),
-      ),
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          // Grid
-          CustomPaint(
-            painter: _TrackingGridPainter(isDark: isDark),
-          ),
-          // Route line
-          CustomPaint(
-            painter: _TrackingRoutePainter(isDark: isDark),
-          ),
-          // Info badge
-          if (routeInfo != null)
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: SafeArea(
-                child: Padding(
-                  padding: const EdgeInsets.all(AppSpacing.md),
-                  child: _RouteInfoBadge(
-                    routeInfo: routeInfo!,
-                    trip: trip,
-                    isDark: isDark,
-                  ),
-                ),
-              ),
-            ),
-          // API key notice
-          Positioned(
-            left: 12,
-            right: 12,
-            bottom: 290,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-              decoration: BoxDecoration(
-                color: (isDark ? Colors.black : Colors.white).withOpacity(0.85),
-                borderRadius: BorderRadius.circular(AppRadius.md),
-                boxShadow: AppShadows.small,
-              ),
-              child: Row(
-                children: [
-                  const Icon(Icons.info_outline_rounded,
-                      size: 16, color: AppColors.primary),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'Add a Google Maps API key for live map tracking.',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: isDark
-                            ? AppColors.darkTextSecondary
-                            : AppColors.lightTextSecondary,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
+        color: color,
+        shape: BoxShape.circle,
+        boxShadow: [
+          BoxShadow(
+            color: color.withOpacity(0.5),
+            blurRadius: 10,
+            spreadRadius: 2,
           ),
         ],
       ),
+      child: Icon(icon, color: Colors.white, size: 22),
     );
   }
-}
-
-class _TrackingGridPainter extends CustomPainter {
-  const _TrackingGridPainter({required this.isDark});
-  final bool isDark;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = (isDark ? Colors.white : Colors.black).withOpacity(0.08)
-      ..strokeWidth = 1;
-    for (double x = 0; x < size.width; x += 40) {
-      canvas.drawLine(Offset(x, 0), Offset(x, size.height), paint);
-    }
-    for (double y = 0; y < size.height; y += 40) {
-      canvas.drawLine(Offset(0, y), Offset(size.width, y), paint);
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
-}
-
-class _TrackingRoutePainter extends CustomPainter {
-  const _TrackingRoutePainter({required this.isDark});
-  final bool isDark;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final routePaint = Paint()
-      ..color = AppColors.primary.withOpacity(0.35)
-      ..strokeWidth = 7
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke;
-    final route = Path()
-      ..moveTo(size.width * 0.18, size.height * 0.75)
-      ..quadraticBezierTo(
-        size.width * 0.50,
-        size.height * 0.55,
-        size.width * 0.78,
-        size.height * 0.30,
-      );
-    canvas.drawPath(route, routePaint);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
 
 /// A floating badge showing route distance and ETA on the tracking map.
@@ -509,7 +415,7 @@ class _RouteInfoBadge extends StatelessWidget {
     required this.isDark,
   });
 
-  final RouteInfo routeInfo;
+  final osm.RouteInfo routeInfo;
   final RideTrip trip;
   final bool isDark;
 

@@ -314,6 +314,8 @@ class _TripListTile extends ConsumerWidget {
         return Icons.airport_shuttle_rounded;
       case RideType.economy:
         return Icons.local_taxi_rounded;
+      case RideType.pool:
+        return Icons.group_rounded;
     }
   }
 }

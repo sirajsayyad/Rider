@@ -1,9 +1,9 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:latlong2/latlong.dart';
 
-import '../../../../core/services/google_maps_service.dart';
+import '../../../../core/services/open_maps_service.dart';
 import '../../ride/application/ride_controller.dart';
 
 /// Holds the computed route between pickup and destination.
@@ -50,7 +50,7 @@ class RouteController extends StateNotifier<RouteState> {
     });
   }
 
-  final GoogleMapsService _mapsService;
+  final OpenMapsService _mapsService;
   final Ref _ref;
   ProviderSubscription<RideState>? _subscription;
 
@@ -103,6 +103,6 @@ class RouteController extends StateNotifier<RouteState> {
 /// Provider for consuming route state throughout the booking flow.
 final routeControllerProvider =
     StateNotifierProvider<RouteController, RouteState>((ref) {
-  final mapsService = ref.watch(googleMapsServiceProvider);
+  final mapsService = ref.watch(openMapsServiceProvider);
   return RouteController(mapsService, ref);
 });

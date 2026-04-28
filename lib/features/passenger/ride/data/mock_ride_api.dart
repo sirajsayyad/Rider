@@ -116,6 +116,17 @@ class MockRideApi {
         surgeMultiplier: 1.06,
       ),
       _buildQuote(
+        type: RideType.pool,
+        label: 'Pool',
+        subtitle: 'Share ride, save up to 40%',
+        seats: 2,
+        distanceKm: distanceKm,
+        baseRate: 40,
+        distanceRate: 8.0,
+        timeRate: 1.8,
+        surgeMultiplier: 1.0,
+      ),
+      _buildQuote(
         type: RideType.suv,
         label: 'SUV',
         subtitle: 'Extra luggage space and bigger cabin',

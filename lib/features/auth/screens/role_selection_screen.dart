@@ -45,7 +45,7 @@ class _RoleSelectionScreenState extends ConsumerState<RoleSelectionScreen> {
 
               // Title
               Text(
-                'How would you like\nto use RideConnect?',
+                'How would you like\nto use Serene?',
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,

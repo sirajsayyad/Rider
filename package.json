@@ -1,0 +1,32 @@
+{
+  "name": "rider",
+  "version": "1.0.0",
+  "description": "RideConnect Backend",
+  "main": "index.js",
+  "directories": {
+    "lib": "lib",
+    "test": "test"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/sirajsayyad/Rider.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/sirajsayyad/Rider/issues"
+  },
+  "homepage": "https://github.com/sirajsayyad/Rider#readme",
+  "dependencies": {
+    "aws-sdk": "^2.1693.0",
+    "body-parser": "^2.2.2",
+    "cors": "^2.8.6",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1"
+  }
+}

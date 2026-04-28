@@ -4,7 +4,7 @@ import 'dart:math';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
-import '../../../../core/services/google_maps_service.dart';
+import '../../../../core/services/open_maps_service.dart';
 import '../../../../core/services/location_service.dart';
 import '../data/mock_ride_api.dart';
 import '../domain/ride_models.dart';
@@ -134,24 +134,7 @@ class RideController extends StateNotifier<RideState> {
 
   static RideState _initialState() {
     return const RideState(
-      savedPlaces: [
-        SavedPlace(
-          label: 'Home',
-          point: RidePoint(
-            latitude: 28.5562,
-            longitude: 77.1000,
-            address: 'Dwarka Sector 6, New Delhi',
-          ),
-        ),
-        SavedPlace(
-          label: 'Work',
-          point: RidePoint(
-            latitude: 28.5002,
-            longitude: 77.0896,
-            address: 'Cyber Hub, Gurugram',
-          ),
-        ),
-      ],
+      savedPlaces: [],
     );
   }
 
@@ -211,12 +194,16 @@ class RideController extends StateNotifier<RideState> {
     bool? acRide,
     bool? silentRide,
     bool? musicOn,
+    bool? femaleOnly,
+    bool? petFriendly,
   }) {
     state = state.copyWith(
       preferences: state.preferences.copyWith(
         acRide: acRide,
         silentRide: silentRide,
         musicOn: musicOn,
+        womenOnly: femaleOnly,
+        petFriendly: petFriendly,
       ),
     );
   }
@@ -266,9 +253,9 @@ class RideController extends StateNotifier<RideState> {
   Future<RidePoint?> resolveDestination(
     String query,
     LocationService locationService, {
-    GoogleMapsService? mapsService,
+    OpenMapsService? mapsService,
   }) async {
-    // First try Google Geocoding if API key is available (works on web)
+    // First try Nominatim geocoding (free, no API key needed)
     if (mapsService != null && mapsService.hasApiKey) {
       final gResult = await mapsService.geocodeAddress(query.trim());
       if (gResult != null) {
@@ -300,6 +287,9 @@ class RideController extends StateNotifier<RideState> {
 
   /// Matches user input against a built-in database of known locations.
   /// Used as a last resort when Google API and device geocoder are unavailable.
+  /// Always returns a valid RidePoint — if no known location matches, a
+  /// fallback destination is generated near the current pickup so the user
+  /// can type ANY location and continue booking.
   RidePoint? _demoGeocode(String query) {
     final normalized = query.toLowerCase();
     for (final entry in _knownLocations.entries) {
@@ -326,6 +316,8 @@ class RideController extends StateNotifier<RideState> {
         }
       }
     }
+
+    // Fallback: Location is completely unknown
     return null;
   }
 

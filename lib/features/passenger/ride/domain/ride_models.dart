@@ -13,6 +13,7 @@ enum RideType {
   premium,
   bike,
   suv,
+  pool,
 }
 
 enum RiderPaymentMethod {
@@ -20,6 +21,7 @@ enum RiderPaymentMethod {
   upi,
   card,
   wallet,
+  corporate,
 }
 
 enum TransactionStatus {
@@ -82,6 +84,11 @@ class DriverInfo {
   final double acceptanceRate;
   final double cancellationRate;
   final int cancellationCount;
+  // New fields for features
+  final String gender;
+  final bool petFriendlyOptIn;
+  final int totalRatings;
+  final int totalTrips;
 
   const DriverInfo({
     required this.id,
@@ -95,6 +102,10 @@ class DriverInfo {
     required this.acceptanceRate,
     required this.cancellationRate,
     required this.cancellationCount,
+    this.gender = 'male',
+    this.petFriendlyOptIn = false,
+    this.totalRatings = 0,
+    this.totalTrips = 0,
   });
 }
 
@@ -137,6 +148,9 @@ class FareBreakdown {
   final double platformFee;
   final double tax;
   final double total;
+  final double petSurcharge;
+  final double poolDiscount;
+  final double subscriptionDiscount;
 
   const FareBreakdown({
     required this.baseFare,
@@ -147,6 +161,9 @@ class FareBreakdown {
     required this.platformFee,
     required this.tax,
     required this.total,
+    this.petSurcharge = 0,
+    this.poolDiscount = 0,
+    this.subscriptionDiscount = 0,
   });
 }
 
@@ -168,22 +185,30 @@ class RidePreferences {
   final bool acRide;
   final bool silentRide;
   final bool musicOn;
+  final bool womenOnly;
+  final bool petFriendly;
 
   const RidePreferences({
     this.acRide = true,
     this.silentRide = false,
     this.musicOn = false,
+    this.womenOnly = false,
+    this.petFriendly = false,
   });
 
   RidePreferences copyWith({
     bool? acRide,
     bool? silentRide,
     bool? musicOn,
+    bool? womenOnly,
+    bool? petFriendly,
   }) {
     return RidePreferences(
       acRide: acRide ?? this.acRide,
       silentRide: silentRide ?? this.silentRide,
       musicOn: musicOn ?? this.musicOn,
+      womenOnly: womenOnly ?? this.womenOnly,
+      petFriendly: petFriendly ?? this.petFriendly,
     );
   }
 }
@@ -196,6 +221,8 @@ class NearbyDriverPreview {
   final double distanceKm;
   final int etaMinutes;
   final double acceptanceRate;
+  final String gender;
+  final bool petFriendlyOptIn;
 
   const NearbyDriverPreview({
     required this.id,
@@ -205,6 +232,8 @@ class NearbyDriverPreview {
     required this.distanceKm,
     required this.etaMinutes,
     required this.acceptanceRate,
+    this.gender = 'male',
+    this.petFriendlyOptIn = false,
   });
 }
 
@@ -315,6 +344,18 @@ class RideTrip {
   final bool routeDeviationDetected;
   final DateTime createdAt;
   final RideReceipt? receipt;
+  // New feature fields
+  final List<RidePoint> intermediateStops;
+  final bool isScheduled;
+  final DateTime? scheduledAt;
+  final bool isPoolRide;
+  final int poolPassengerCount;
+  final bool isCorporateRide;
+  final String? corporateAccountId;
+  final bool isPetFriendly;
+  final double petSurcharge;
+  final bool isFemaleOnly;
+  final String? subscriptionId;
 
   const RideTrip({
     required this.id,
@@ -337,6 +378,17 @@ class RideTrip {
     this.sharedContacts = const [],
     this.routeDeviationDetected = false,
     this.receipt,
+    this.intermediateStops = const [],
+    this.isScheduled = false,
+    this.scheduledAt,
+    this.isPoolRide = false,
+    this.poolPassengerCount = 1,
+    this.isCorporateRide = false,
+    this.corporateAccountId,
+    this.isPetFriendly = false,
+    this.petSurcharge = 0,
+    this.isFemaleOnly = false,
+    this.subscriptionId,
   });
 
   RideTrip copyWith({
@@ -359,6 +411,17 @@ class RideTrip {
     bool? routeDeviationDetected,
     DateTime? createdAt,
     RideReceipt? receipt,
+    List<RidePoint>? intermediateStops,
+    bool? isScheduled,
+    DateTime? scheduledAt,
+    bool? isPoolRide,
+    int? poolPassengerCount,
+    bool? isCorporateRide,
+    String? corporateAccountId,
+    bool? isPetFriendly,
+    double? petSurcharge,
+    bool? isFemaleOnly,
+    String? subscriptionId,
   }) {
     return RideTrip(
       id: id,
@@ -382,6 +445,17 @@ class RideTrip {
       routeDeviationDetected:
           routeDeviationDetected ?? this.routeDeviationDetected,
       receipt: receipt ?? this.receipt,
+      intermediateStops: intermediateStops ?? this.intermediateStops,
+      isScheduled: isScheduled ?? this.isScheduled,
+      scheduledAt: scheduledAt ?? this.scheduledAt,
+      isPoolRide: isPoolRide ?? this.isPoolRide,
+      poolPassengerCount: poolPassengerCount ?? this.poolPassengerCount,
+      isCorporateRide: isCorporateRide ?? this.isCorporateRide,
+      corporateAccountId: corporateAccountId ?? this.corporateAccountId,
+      isPetFriendly: isPetFriendly ?? this.isPetFriendly,
+      petSurcharge: petSurcharge ?? this.petSurcharge,
+      isFemaleOnly: isFemaleOnly ?? this.isFemaleOnly,
+      subscriptionId: subscriptionId ?? this.subscriptionId,
     );
   }
 }

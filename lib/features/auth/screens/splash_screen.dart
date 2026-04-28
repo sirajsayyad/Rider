@@ -95,9 +95,9 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
             colors: [
-              Color(0xFF6366F1),
-              Color(0xFF8B5CF6),
-              Color(0xFFA855F7),
+              Color(0xFF0D1B2A),
+              Color(0xFF1B3A4B),
+              Color(0xFF274C5B),
             ],
           ),
         ),
@@ -115,30 +115,29 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                       children: [
                         // Logo container with glow effect
                         Container(
-                          width: 120,
-                          height: 120,
+                          width: 140,
+                          height: 140,
                           decoration: BoxDecoration(
-                            color: Colors.white,
                             borderRadius: BorderRadius.circular(30),
                             boxShadow: [
                               BoxShadow(
-                                color: Colors.white.withOpacity(0.3),
+                                color: const Color(0xFFB87333).withOpacity(0.3),
                                 blurRadius: 40,
                                 spreadRadius: 10,
                               ),
                             ],
                           ),
-                          child: const Center(
-                            child: Icon(
-                              Icons.directions_car_rounded,
-                              size: 64,
-                              color: Color(0xFF6366F1),
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(30),
+                            child: Image.asset(
+                              'assets/images/serene_icon.png',
+                              fit: BoxFit.cover,
                             ),
                           ),
                         ),
                         const SizedBox(height: AppSpacing.xl),
                         const Text(
-                          'RideConnect',
+                          'Serene',
                           style: TextStyle(
                             fontSize: 36,
                             fontWeight: FontWeight.bold,
@@ -148,7 +147,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen>
                         ),
                         const SizedBox(height: AppSpacing.sm),
                         Text(
-                          'Your ride, your way',
+                          'Unwind Your Journey',
                           style: TextStyle(
                             fontSize: 16,
                             color: Colors.white.withOpacity(0.9),

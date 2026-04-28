@@ -26,7 +26,7 @@ class RideConnectApp extends ConsumerWidget {
     final router = ref.watch(routerProvider);
     
     return MaterialApp.router(
-      title: 'RideConnect',
+      title: 'Serene',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,

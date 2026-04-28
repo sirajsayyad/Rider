@@ -12,6 +12,13 @@ class AppUser {
   final List<SavedAddress> savedAddresses;
   final UserPreferencesData preferences;
   final DateTime createdAt;
+  // New feature fields
+  final String? referralCode;
+  final String? referredBy;
+  final String gender;
+  final String? corporateAccountId;
+  final bool isCorporate;
+  final String? activeSubscriptionId;
 
   const AppUser({
     required this.id,
@@ -25,6 +32,12 @@ class AppUser {
     this.savedAddresses = const [],
     this.preferences = const UserPreferencesData(),
     required this.createdAt,
+    this.referralCode,
+    this.referredBy,
+    this.gender = 'unspecified',
+    this.corporateAccountId,
+    this.isCorporate = false,
+    this.activeSubscriptionId,
   });
 
   AppUser copyWith({
@@ -37,6 +50,12 @@ class AppUser {
     int? rewardPoints,
     List<SavedAddress>? savedAddresses,
     UserPreferencesData? preferences,
+    String? referralCode,
+    String? referredBy,
+    String? gender,
+    String? corporateAccountId,
+    bool? isCorporate,
+    String? activeSubscriptionId,
   }) {
     return AppUser(
       id: id,
@@ -50,6 +69,12 @@ class AppUser {
       savedAddresses: savedAddresses ?? this.savedAddresses,
       preferences: preferences ?? this.preferences,
       createdAt: createdAt,
+      referralCode: referralCode ?? this.referralCode,
+      referredBy: referredBy ?? this.referredBy,
+      gender: gender ?? this.gender,
+      corporateAccountId: corporateAccountId ?? this.corporateAccountId,
+      isCorporate: isCorporate ?? this.isCorporate,
+      activeSubscriptionId: activeSubscriptionId ?? this.activeSubscriptionId,
     );
   }
 }

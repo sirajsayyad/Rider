@@ -30,6 +30,18 @@ subprojects { sub ->
     }
 }
 
+// Force all plugin subprojects to use compileSdk 35, because
+// android-33 platform is incomplete on this machine.
+subprojects { sub ->
+    if (sub.name != "app") {
+        sub.afterEvaluate {
+            if (sub.hasProperty("android")) {
+                sub.android.compileSdkVersion 35
+            }
+        }
+    }
+}
+
 tasks.register("clean", Delete) {
     delete rootProject.buildDir
 }
